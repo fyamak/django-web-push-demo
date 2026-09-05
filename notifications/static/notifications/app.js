@@ -1,0 +1,162 @@
+(() => {
+  const logEl = document.getElementById("log");
+  const enableBtn = document.getElementById("enableBtn");
+  const disableBtn = document.getElementById("disableBtn");
+  const sendBtn = document.getElementById("sendBtn");
+  const installBtn = document.getElementById("installBtn");
+  const publicKey = document.body.dataset.vapidPublicKey;
+  let deferredInstallPrompt = null;
+
+  function log(message, data = null) {
+    const stamp = new Date().toLocaleTimeString();
+    let line = `[${stamp}] ${message}`;
+    if (data !== null) line += `\n${JSON.stringify(data, null, 2)}`;
+    logEl.textContent = `${line}\n\n${logEl.textContent}`;
+  }
+
+  function getCookie(name) {
+    const cookies = document.cookie ? document.cookie.split(";") : [];
+    for (const cookie of cookies) {
+      const item = cookie.trim();
+      if (item.startsWith(`${name}=`)) return decodeURIComponent(item.substring(name.length + 1));
+    }
+    return null;
+  }
+
+  function urlBase64ToUint8Array(base64String) {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = atob(base64);
+    return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
+  }
+
+  async function postJson(url, data) {
+    const response = await fetch(url, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCookie("csrftoken"),
+      },
+      body: JSON.stringify(data),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || payload.errors?.join(" | ") || `HTTP ${response.status}`);
+    return payload;
+  }
+
+  async function getRegistration() {
+    if (!("serviceWorker" in navigator)) throw new Error("Bu tarayıcı Service Worker desteklemiyor.");
+    return navigator.serviceWorker.register("/service-worker.js", { scope: "/" });
+  }
+
+  async function syncExistingSubscription() {
+    const registration = await getRegistration();
+    const subscription = await registration.pushManager.getSubscription();
+    if (subscription) {
+      await postJson("/api/push/subscribe/", subscription.toJSON());
+      log("Var olan tarayıcı aboneliği Django kullanıcısıyla eşitlendi.");
+    }
+    return subscription;
+  }
+
+  async function enableNotifications() {
+    try {
+      if (!publicKey) throw new Error("VAPID public key bulunamadı.");
+      if (!("Notification" in window)) throw new Error("Bu tarayıcı Notification API desteklemiyor.");
+      if (!window.isSecureContext) throw new Error("Web Push için HTTPS gerekir (localhost hariç). ");
+
+      // Permission isteğini doğrudan click handler içinde, başka bir async beklemeden yap.
+      // Bu özellikle iOS Home Screen Web Push için önemlidir.
+      const permission = await Notification.requestPermission();
+      document.getElementById("permissionStatus").textContent = permission;
+      if (permission !== "granted") throw new Error(`Bildirim izni verilmedi: ${permission}`);
+
+      const registration = await getRegistration();
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
+        });
+      }
+
+      const result = await postJson("/api/push/subscribe/", subscription.toJSON());
+      log("Bildirim aboneliği hazır.", result);
+      alert("Bildirim aboneliği başarıyla açıldı.");
+    } catch (error) {
+      log(`Abonelik hatası: ${error.message}`);
+      alert(error.message);
+    }
+  }
+
+  async function disableNotifications() {
+    try {
+      const registration = await getRegistration();
+      const subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        log("Kapatılacak aktif abonelik bulunamadı.");
+        return;
+      }
+
+      await postJson("/api/push/unsubscribe/", { endpoint: subscription.endpoint });
+      await subscription.unsubscribe();
+      log("Bildirim aboneliği kapatıldı.");
+      alert("Bildirimler kapatıldı.");
+    } catch (error) {
+      log(`Abonelik kapatma hatası: ${error.message}`);
+      alert(error.message);
+    }
+  }
+
+  async function sendTest() {
+    try {
+      sendBtn.disabled = true;
+      const result = await postJson("/api/push/send-test/", {
+        title: document.getElementById("title").value,
+        body: document.getElementById("body").value,
+        url: document.getElementById("url").value,
+      });
+      log("Django push gönderim sonucu", result);
+    } catch (error) {
+      log(`Push gönderim hatası: ${error.message}`);
+      alert(error.message);
+    } finally {
+      sendBtn.disabled = false;
+    }
+  }
+
+  async function init() {
+    document.getElementById("secureStatus").textContent = window.isSecureContext ? "Uygun" : "Uygun değil";
+    document.getElementById("permissionStatus").textContent = "Notification" in window ? Notification.permission : "Desteklenmiyor";
+
+    try {
+      const registration = await getRegistration();
+      document.getElementById("swStatus").textContent = registration ? "Kayıtlı" : "Kayıt başarısız";
+      await syncExistingSubscription();
+      log("Uygulama hazır.");
+    } catch (error) {
+      document.getElementById("swStatus").textContent = "Hata";
+      log(`Başlangıç hatası: ${error.message}`);
+    }
+  }
+
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    installBtn.hidden = false;
+  });
+
+  installBtn.addEventListener("click", async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    installBtn.hidden = true;
+  });
+
+  enableBtn.addEventListener("click", enableNotifications);
+  disableBtn.addEventListener("click", disableNotifications);
+  sendBtn.addEventListener("click", sendTest);
+  init();
+})();

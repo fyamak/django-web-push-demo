@@ -1,0 +1,72 @@
+{% load static %}
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="{% static 'notifications/icons/icon-192.png' %}">
+  <title>Django Web Push Demo</title>
+  <style>
+    *{box-sizing:border-box} body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:#f3f4f6;color:#111827}
+    .container{max-width:900px;margin:auto;padding:20px}.top{display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap}
+    .card{background:white;border-radius:16px;padding:20px;margin:16px 0;box-shadow:0 8px 26px rgba(0,0,0,.06)}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}.status{padding:12px;background:#f9fafb;border-radius:10px}
+    button{border:0;border-radius:10px;padding:11px 15px;font-weight:700;cursor:pointer;background:#111827;color:white;margin:4px 4px 4px 0}
+    button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c1c}button:disabled{opacity:.5;cursor:not-allowed}
+    input,textarea{width:100%;padding:11px;border:1px solid #d1d5db;border-radius:9px;font:inherit;margin:5px 0 12px}textarea{min-height:90px}
+    code{background:#f3f4f6;padding:2px 5px;border-radius:5px}.log{white-space:pre-wrap;background:#111827;color:#e5e7eb;padding:14px;border-radius:10px;min-height:100px;max-height:260px;overflow:auto;font:13px ui-monospace,monospace}
+    .ok{color:#047857}.warn{color:#b45309}.small{font-size:14px;color:#4b5563}.pill{display:inline-block;padding:5px 9px;border-radius:999px;background:#e5e7eb;font-size:13px}
+    form.logout{display:inline} form.logout button{background:#374151}
+  </style>
+</head>
+<body data-vapid-public-key="{{ vapid_public_key }}">
+<div class="container">
+  <div class="top">
+    <div><h1>Django Web Push Demo</h1><div class="small">Kullanıcı: <strong>{{ request.user.username }}</strong></div></div>
+    <form class="logout" method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Çıkış</button></form>
+  </div>
+
+  <div class="card">
+    <h2>1. PWA / tarayıcı durumu</h2>
+    <div class="grid">
+      <div class="status"><strong>HTTPS / güvenli ortam</strong><div id="secureStatus">Kontrol ediliyor…</div></div>
+      <div class="status"><strong>Service Worker</strong><div id="swStatus">Kontrol ediliyor…</div></div>
+      <div class="status"><strong>Bildirim izni</strong><div id="permissionStatus">Kontrol ediliyor…</div></div>
+      <div class="status"><strong>Sunucudaki abonelik</strong><div><span class="pill">{{ subscription_count }} kayıt</span></div></div>
+    </div>
+    <p class="small">iPhone/iPad: siteyi ana ekrana ekle, ana ekrandaki ikon üzerinden aç, sonra aşağıdaki “Bildirimleri etkinleştir” düğmesine bas.</p>
+    <button id="installBtn" class="secondary" hidden>Uygulamayı yükle</button>
+  </div>
+
+  <div class="card">
+    <h2>2. Bildirim aboneliği</h2>
+    <button id="enableBtn">Bildirimleri etkinleştir</button>
+    <button id="disableBtn" class="danger">Bildirimleri kapat</button>
+  </div>
+
+  <div class="card">
+    <h2>3. Kendine test bildirimi gönder</h2>
+    <label>Başlık</label>
+    <input id="title" value="Django test bildirimi">
+    <label>Mesaj</label>
+    <textarea id="body">Web Push çalışıyor. Bu bildirim Django sunucusundan gönderildi.</textarea>
+    <label>Tıklanınca açılacak adres</label>
+    <input id="url" value="/">
+    <button id="sendBtn">Test bildirimi gönder</button>
+    <p class="small">Bu düğme Django backend → tarayıcı push servisi → Service Worker → işletim sistemi bildirimi akışını gerçek olarak çalıştırır.</p>
+  </div>
+
+  <div class="card">
+    <h2>Debug</h2>
+    <div id="log" class="log"></div>
+  </div>
+
+  <form style="display:none">{% csrf_token %}</form>
+</div>
+<script src="{% static 'notifications/app.js' %}"></script>
+</body>
+</html>
