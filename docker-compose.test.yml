@@ -3,11 +3,11 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: pushdemo
+      POSTGRES_USER: pushdemo
+      POSTGRES_PASSWORD: pushdemo-test-password
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U pushdemo -d pushdemo"]
       interval: 3s
       timeout: 3s
       retries: 20
@@ -17,8 +17,7 @@ services:
   web:
     build: .
     restart: unless-stopped
-    env_file:
-      - .env.test
+    command: ["test"]
     depends_on:
       db:
         condition: service_healthy

@@ -1,17 +1,17 @@
-import os
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 
 
 class Command(BaseCommand):
-    help = "Create a demo user from environment variables when missing."
+    help = "Create the demo user defined in Django settings when missing."
 
     def handle(self, *args, **options):
-        username = os.getenv("DEMO_USERNAME", "demo")
-        password = os.getenv("DEMO_PASSWORD", "Demo12345!")
-        email = os.getenv("DEMO_EMAIL", "demo@example.com")
-        reset_password = os.getenv("RESET_DEMO_PASSWORD", "0") == "1"
+        username = settings.DEMO_USERNAME
+        password = settings.DEMO_PASSWORD
+        email = settings.DEMO_EMAIL
+        reset_password = False
 
         User = get_user_model()
         user, created = User.objects.get_or_create(username=username, defaults={"email": email})

@@ -1,17 +1,11 @@
-import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-
-def env_list(name, default=""):
-    return [item.strip() for item in os.getenv(name, default).split(",") if item.strip()]
-
-
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "unsafe-development-key")
+SECRET_KEY = "django-web-push-demo-common-key-change-before-real-use"
 DEBUG = False
-ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", "localhost,127.0.0.1")
-CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
+ALLOWED_HOSTS = []
+CSRF_TRUSTED_ORIGINS = []
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -52,18 +46,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "pushdemo.wsgi.application"
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("POSTGRES_DB", "pushdemo"),
-        "USER": os.getenv("POSTGRES_USER", "pushdemo"),
-        "PASSWORD": os.getenv("POSTGRES_PASSWORD", "pushdemo"),
-        "HOST": os.getenv("POSTGRES_HOST", "db"),
-        "PORT": os.getenv("POSTGRES_PORT", "5432"),
-        "CONN_MAX_AGE": 60,
-    }
-}
-
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
@@ -85,6 +67,10 @@ LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/login/"
 
-VAPID_SUBJECT = os.getenv("VAPID_SUBJECT", "mailto:admin@example.com")
-VAPID_PRIVATE_KEY_PATH = os.getenv("VAPID_PRIVATE_KEY_PATH", "/app/keys/vapid_private.pem")
-VAPID_PUBLIC_KEY_PATH = os.getenv("VAPID_PUBLIC_KEY_PATH", "/app/keys/vapid_public.txt")
+VAPID_SUBJECT = "mailto:admin@example.com"
+VAPID_PRIVATE_KEY_PATH = "/app/keys/vapid_private.pem"
+VAPID_PUBLIC_KEY_PATH = "/app/keys/vapid_public.txt"
+
+DEMO_USERNAME = "demo"
+DEMO_PASSWORD = "Demo12345!"
+DEMO_EMAIL = "demo@example.com"
