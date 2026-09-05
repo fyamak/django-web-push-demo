@@ -281,3 +281,11 @@ iPhone'da uygulamayı Safari üzerinden açıp **Ana Ekrana Ekle** yaptıktan so
 Bu proje entegrasyon demosudur. Şifreler ve Django `SECRET_KEY` değerleri bilerek doğrudan dosyalara yazılmıştır çünkü bu sürümde `.env` kullanılmaması istenmiştir.
 
 Gerçek production uygulamasına geçirirken DB parolası, Django `SECRET_KEY` ve benzeri secret değerleri repository içinde tutmamak daha doğru olur.
+
+## Bildirimlerin ayrı görünmesi ve geçmiş
+
+Her gönderim artık `Notification` tablosunda ayrı bir kayıt oluşturur. Push payload içindeki `tag` değeri de `notification-<id>` biçiminde benzersizdir.
+
+Web Notification API'de aynı `tag` değerini tekrar kullanmak önceki bildirimin yeni bildirimle değiştirilmesine neden olabilir. Bu nedenle sabit tag kullanılmamalıdır.
+
+Uygulama ana sayfasındaki **Bildirim geçmişi** bölümü son 50 bildirimi gösterir. İşletim sistemi bildirimi kullanıcı tarafından temizlense bile bu geçmiş Django veritabanında kalır. Bildirime tıklanınca kayıt okundu olarak işaretlenir ve bildirimin hedef adresine yönlendirilir.

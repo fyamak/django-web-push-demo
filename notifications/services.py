@@ -2,9 +2,10 @@ import json
 import logging
 
 from django.conf import settings
+from django.urls import reverse
 from pywebpush import WebPushException, webpush
 
-from .models import PushSubscription
+from .models import Notification, PushSubscription
 
 logger = logging.getLogger(__name__)
 
@@ -30,12 +31,25 @@ def send_push_to_subscription(subscription, payload):
         return False, str(exc)
 
 
-def send_push_to_user(user, title, body, url="/", tag="demo-notification"):
+def send_push_to_user(user, title, body, url="/"):
+    # Her gönderim önce DB'ye ayrı bir bildirim kaydı olarak yazılır.
+    # Bu kayıt işletim sistemi bildirim geçmişinden bağımsız kalıcı geçmiş sağlar.
+    notification = Notification.objects.create(
+        user=user,
+        title=title,
+        body=body,
+        url=url,
+    )
+
+    # Aynı `tag` tarayıcı/işletim sisteminde önceki bildirimin değiştirilmesine
+    # neden olur. Bu yüzden her bildirim için benzersiz tag kullanıyoruz.
+    open_url = reverse("notifications:open_notification", args=[notification.pk])
     payload = {
+        "notification_id": notification.pk,
         "title": title,
         "body": body,
-        "url": url,
-        "tag": tag,
+        "url": open_url,
+        "tag": f"notification-{notification.pk}",
     }
 
     sent = 0
@@ -51,4 +65,13 @@ def send_push_to_user(user, title, body, url="/", tag="demo-notification"):
             if error:
                 errors.append(error)
 
-    return {"sent": sent, "failed": failed, "errors": errors}
+    notification.sent_count = sent
+    notification.failed_count = failed
+    notification.save(update_fields=["sent_count", "failed_count"])
+
+    return {
+        "notification_id": notification.pk,
+        "sent": sent,
+        "failed": failed,
+        "errors": errors,
+    }

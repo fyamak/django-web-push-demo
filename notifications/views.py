@@ -3,11 +3,13 @@ from pathlib import Path
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse, JsonResponse
-from django.shortcuts import render
+from django.http import HttpResponseRedirect, JsonResponse
+from django.shortcuts import get_object_or_404, render
+from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from .models import PushSubscription
+from .models import Notification, PushSubscription
 from .services import send_push_to_user
 
 
@@ -20,12 +22,15 @@ def _read_public_key():
 
 @login_required
 def home(request):
+    notifications = Notification.objects.filter(user=request.user)[:50]
     return render(
         request,
         "notifications/home.html",
         {
             "vapid_public_key": _read_public_key(),
             "subscription_count": PushSubscription.objects.filter(user=request.user).count(),
+            "notifications": notifications,
+            "unread_count": Notification.objects.filter(user=request.user, read_at__isnull=True).count(),
         },
     )
 
@@ -75,6 +80,53 @@ def _json_body(request):
         return None
 
 
+def _serialize_notification(notification):
+    return {
+        "id": notification.pk,
+        "title": notification.title,
+        "body": notification.body,
+        "url": notification.url,
+        "open_url": reverse("notifications:open_notification", args=[notification.pk]),
+        "sent_count": notification.sent_count,
+        "failed_count": notification.failed_count,
+        "is_read": notification.is_read,
+        "created_at": notification.created_at.isoformat(),
+        "created_at_display": timezone.localtime(notification.created_at).strftime("%d.%m.%Y %H:%M"),
+    }
+
+
+@login_required
+@require_GET
+def notification_history(request):
+    items = Notification.objects.filter(user=request.user)[:50]
+    return JsonResponse(
+        {
+            "ok": True,
+            "unread_count": Notification.objects.filter(user=request.user, read_at__isnull=True).count(),
+            "items": [_serialize_notification(item) for item in items],
+        }
+    )
+
+
+@login_required
+@require_GET
+def open_notification(request, notification_id):
+    notification = get_object_or_404(Notification, pk=notification_id, user=request.user)
+    if notification.read_at is None:
+        notification.read_at = timezone.now()
+        notification.save(update_fields=["read_at"])
+
+    target = notification.url if notification.url.startswith("/") and not notification.url.startswith("//") else "/"
+    return HttpResponseRedirect(target)
+
+
+@login_required
+@require_POST
+def mark_all_notifications_read(request):
+    updated = Notification.objects.filter(user=request.user, read_at__isnull=True).update(read_at=timezone.now())
+    return JsonResponse({"ok": True, "updated": updated})
+
+
 @login_required
 @require_POST
 def subscribe(request):
@@ -122,9 +174,10 @@ def send_test(request):
     title = str(data.get("title") or "Django Web Push")[:120]
     body = str(data.get("body") or "Test bildirimi başarıyla gönderildi.")[:500]
     url = str(data.get("url") or "/")[:500]
-    if not url.startswith("/"):
+    if not url.startswith("/") or url.startswith("//"):
         url = "/"
 
     result = send_push_to_user(request.user, title=title, body=body, url=url)
+    # Push ulaşmasa bile notification geçmişe kaydedildiği için response içinde id döner.
     status = 200 if result["sent"] > 0 else 400
     return JsonResponse({"ok": result["sent"] > 0, **result}, status=status)

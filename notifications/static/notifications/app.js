@@ -4,6 +4,9 @@
   const disableBtn = document.getElementById("disableBtn");
   const sendBtn = document.getElementById("sendBtn");
   const installBtn = document.getElementById("installBtn");
+  const markAllReadBtn = document.getElementById("markAllReadBtn");
+  const historyList = document.getElementById("historyList");
+  const unreadCount = document.getElementById("unreadCount");
   const publicKey = document.body.dataset.vapidPublicKey;
   let deferredInstallPrompt = null;
 
@@ -30,7 +33,7 @@
     return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
   }
 
-  async function postJson(url, data) {
+  async function postJson(url, data = {}) {
     const response = await fetch(url, {
       method: "POST",
       credentials: "same-origin",
@@ -66,8 +69,6 @@
       if (!("Notification" in window)) throw new Error("Bu tarayıcı Notification API desteklemiyor.");
       if (!window.isSecureContext) throw new Error("Web Push için HTTPS gerekir (localhost hariç). ");
 
-      // Permission isteğini doğrudan click handler içinde, başka bir async beklemeden yap.
-      // Bu özellikle iOS Home Screen Web Push için önemlidir.
       const permission = await Notification.requestPermission();
       document.getElementById("permissionStatus").textContent = permission;
       if (permission !== "granted") throw new Error(`Bildirim izni verilmedi: ${permission}`);
@@ -109,6 +110,68 @@
     }
   }
 
+  function renderHistory(items, count) {
+    unreadCount.textContent = count;
+    historyList.replaceChildren();
+
+    if (!items.length) {
+      const empty = document.createElement("div");
+      empty.className = "history-empty";
+      empty.textContent = "Henüz bildirim yok.";
+      historyList.appendChild(empty);
+      return;
+    }
+
+    for (const item of items) {
+      const link = document.createElement("a");
+      link.href = item.open_url;
+      link.className = `notification-item${item.is_read ? "" : " unread"}`;
+
+      const head = document.createElement("div");
+      head.className = "notification-head";
+
+      const title = document.createElement("strong");
+      title.textContent = item.title;
+      head.appendChild(title);
+
+      const date = document.createElement("span");
+      date.className = "notification-date";
+      date.textContent = item.created_at_display;
+      head.appendChild(date);
+
+      const body = document.createElement("div");
+      body.className = "notification-body";
+      body.textContent = item.body;
+
+      const meta = document.createElement("div");
+      meta.className = "notification-meta";
+      meta.textContent = `Gönderim: ${item.sent_count} başarılı, ${item.failed_count} başarısız${item.is_read ? " · okundu" : " · okunmadı"}`;
+
+      link.append(head, body, meta);
+      historyList.appendChild(link);
+    }
+  }
+
+  async function refreshNotificationHistory() {
+    try {
+      const response = await fetch("/api/notifications/", { credentials: "same-origin" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const result = await response.json();
+      renderHistory(result.items || [], result.unread_count || 0);
+    } catch (error) {
+      log(`Bildirim geçmişi yenilenemedi: ${error.message}`);
+    }
+  }
+
+  async function markAllRead() {
+    try {
+      await postJson("/api/notifications/mark-all-read/");
+      await refreshNotificationHistory();
+    } catch (error) {
+      log(`Okundu işaretleme hatası: ${error.message}`);
+    }
+  }
+
   async function sendTest() {
     try {
       sendBtn.disabled = true;
@@ -118,7 +181,10 @@
         url: document.getElementById("url").value,
       });
       log("Django push gönderim sonucu", result);
+      await refreshNotificationHistory();
     } catch (error) {
+      // Push gönderimi başarısız olsa dahi backend geçmiş kaydını oluşturmuş olabilir.
+      await refreshNotificationHistory();
       log(`Push gönderim hatası: ${error.message}`);
       alert(error.message);
     } finally {
@@ -134,9 +200,11 @@
       const registration = await getRegistration();
       document.getElementById("swStatus").textContent = registration ? "Kayıtlı" : "Kayıt başarısız";
       await syncExistingSubscription();
+      await refreshNotificationHistory();
       log("Uygulama hazır.");
     } catch (error) {
       document.getElementById("swStatus").textContent = "Hata";
+      await refreshNotificationHistory();
       log(`Başlangıç hatası: ${error.message}`);
     }
   }
@@ -158,5 +226,6 @@
   enableBtn.addEventListener("click", enableNotifications);
   disableBtn.addEventListener("click", disableNotifications);
   sendBtn.addEventListener("click", sendTest);
+  markAllReadBtn.addEventListener("click", markAllRead);
   init();
 })();

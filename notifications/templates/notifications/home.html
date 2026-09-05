@@ -21,6 +21,11 @@
     code{background:#f3f4f6;padding:2px 5px;border-radius:5px}.log{white-space:pre-wrap;background:#111827;color:#e5e7eb;padding:14px;border-radius:10px;min-height:100px;max-height:260px;overflow:auto;font:13px ui-monospace,monospace}
     .ok{color:#047857}.warn{color:#b45309}.small{font-size:14px;color:#4b5563}.pill{display:inline-block;padding:5px 9px;border-radius:999px;background:#e5e7eb;font-size:13px}
     form.logout{display:inline} form.logout button{background:#374151}
+    .history-title{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.history-title h2{margin:0}
+    .history-list{display:grid;gap:10px;margin-top:16px}.notification-item{display:block;text-decoration:none;color:inherit;border:1px solid #e5e7eb;border-radius:12px;padding:14px;background:#fff;transition:.15s ease}
+    .notification-item:hover{border-color:#9ca3af;transform:translateY(-1px)}.notification-item.unread{border-left:5px solid #111827;background:#f9fafb}
+    .notification-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.notification-date{font-size:12px;color:#6b7280;white-space:nowrap}
+    .notification-body{margin-top:6px;color:#374151;line-height:1.45}.notification-meta{margin-top:8px;font-size:12px;color:#6b7280}.history-empty{padding:18px;text-align:center;color:#6b7280;background:#f9fafb;border-radius:10px}
   </style>
 </head>
 <body data-vapid-public-key="{{ vapid_public_key }}">
@@ -57,7 +62,32 @@
     <label>Tıklanınca açılacak adres</label>
     <input id="url" value="/">
     <button id="sendBtn">Test bildirimi gönder</button>
-    <p class="small">Bu düğme Django backend → tarayıcı push servisi → Service Worker → işletim sistemi bildirimi akışını gerçek olarak çalıştırır.</p>
+    <p class="small">Her gönderim benzersiz bir bildirim olarak gösterilir ve ayrıca Django veritabanında geçmişe kaydedilir.</p>
+  </div>
+
+  <div class="card">
+    <div class="history-title">
+      <div>
+        <h2>Bildirim geçmişi</h2>
+        <div class="small">Okunmamış: <strong id="unreadCount">{{ unread_count }}</strong></div>
+      </div>
+      <button id="markAllReadBtn" class="secondary">Tümünü okundu işaretle</button>
+    </div>
+
+    <div id="historyList" class="history-list">
+      {% for notification in notifications %}
+        <a class="notification-item{% if not notification.is_read %} unread{% endif %}" href="{% url 'notifications:open_notification' notification.id %}">
+          <div class="notification-head">
+            <strong>{{ notification.title }}</strong>
+            <span class="notification-date">{{ notification.created_at|date:"d.m.Y H:i" }}</span>
+          </div>
+          <div class="notification-body">{{ notification.body }}</div>
+          <div class="notification-meta">Gönderim: {{ notification.sent_count }} başarılı, {{ notification.failed_count }} başarısız · {% if notification.is_read %}okundu{% else %}okunmadı{% endif %}</div>
+        </a>
+      {% empty %}
+        <div class="history-empty">Henüz bildirim yok.</div>
+      {% endfor %}
+    </div>
   </div>
 
   <div class="card">

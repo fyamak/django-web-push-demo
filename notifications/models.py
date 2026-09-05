@@ -29,3 +29,30 @@ class PushSubscription(models.Model):
                 "auth": self.auth,
             },
         }
+
+
+class Notification(models.Model):
+    """Persistent in-app history for every notification sent to a user."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="notifications",
+    )
+    title = models.CharField(max_length=120)
+    body = models.TextField(max_length=500)
+    url = models.CharField(max_length=500, default="/")
+    sent_count = models.PositiveIntegerField(default=0)
+    failed_count = models.PositiveIntegerField(default=0)
+    read_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user} - {self.title} ({self.created_at:%Y-%m-%d %H:%M})"
+
+    @property
+    def is_read(self):
+        return self.read_at is not None
