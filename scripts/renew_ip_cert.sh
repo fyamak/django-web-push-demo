@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# LEGACY/UNUSED on testplatform.farmingo.com.tr: TLS is managed by the host Nginx/Certbot.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

@@ -53,9 +53,40 @@
     return navigator.serviceWorker.register("/service-worker.js", { scope: "/" });
   }
 
+  function applicationServerKeyMatches(subscription) {
+    const existingKey = subscription?.options?.applicationServerKey;
+    if (!existingKey || !publicKey) return false;
+
+    const expected = urlBase64ToUint8Array(publicKey);
+    const current = new Uint8Array(existingKey);
+    if (current.length !== expected.length) return false;
+    return current.every((value, index) => value === expected[index]);
+  }
+
+  async function getCompatibleSubscription(registration) {
+    const subscription = await registration.pushManager.getSubscription();
+    if (!subscription) return null;
+
+    // Aynı domain daha önce başka bir Web Push uygulaması tarafından kullanıldıysa
+    // tarayıcı eski VAPID public key'e bağlı subscription'ı tutabilir. Yeni backend'in
+    // private key'iyle bu endpoint'e push gönderilemez; bu yüzden eski aboneliği yenile.
+    if (!applicationServerKeyMatches(subscription)) {
+      log("Eski VAPID anahtarına ait push aboneliği bulundu; yenileniyor.");
+      try {
+        await postJson("/api/push/unsubscribe/", { endpoint: subscription.endpoint });
+      } catch (_) {
+        // Yeni veritabanında eski endpoint'in bulunmaması normaldir.
+      }
+      await subscription.unsubscribe();
+      return null;
+    }
+
+    return subscription;
+  }
+
   async function syncExistingSubscription() {
     const registration = await getRegistration();
-    const subscription = await registration.pushManager.getSubscription();
+    const subscription = await getCompatibleSubscription(registration);
     if (subscription) {
       await postJson("/api/push/subscribe/", subscription.toJSON());
       log("Var olan tarayıcı aboneliği Django kullanıcısıyla eşitlendi.");
@@ -74,7 +105,7 @@
       if (permission !== "granted") throw new Error(`Bildirim izni verilmedi: ${permission}`);
 
       const registration = await getRegistration();
-      let subscription = await registration.pushManager.getSubscription();
+      let subscription = await getCompatibleSubscription(registration);
       if (!subscription) {
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,

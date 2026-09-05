@@ -110,85 +110,35 @@ docker compose -f docker-compose.local.yml exec web python manage.py send_push -
 
 Önce tarayıcı üzerinden giriş yapıp **Bildirimleri etkinleştir** butonuna basman gerekir. Böylece tarayıcı subscription bilgisi veritabanına kaydedilir.
 
-## Test sunucusu
+## Test sunucusu — testplatform.farmingo.com.tr
 
-Sunucu:
+Bu sürüm, test sunucusunda Nginx'in **host üzerinde zaten çalıştığı** düzene göre
+hazırlanmıştır. Docker ikinci bir Nginx/Certbot başlatmaz.
 
-```text
-31.97.37.175
-Ubuntu
-```
-
-Django test ayarları:
+Ayrıntılı kurulum ve kontrol komutları:
 
 ```text
-pushdemo/settings/test.py
+SERVER_DEPLOY.md
 ```
 
-Test PostgreSQL bilgileri:
-
-```text
-Database: pushdemo
-User: pushdemo
-Password: pushdemo-test-password
-Host: db
-Port: 5432
-```
-
-Test sunucusunda normal başlatma:
+Özet:
 
 ```bash
+sudo mkdir -p /var/www/platform_farmingo
 docker compose -f docker-compose.test.yml up -d --build
 ```
 
-Log:
+Bu sürümde `.env`, `.env.server` ve `env_file` kullanılmaz. Test ayarları doğrudan `pushdemo/settings/test.py` ve `docker-compose.test.yml` içindedir.
 
-```bash
-docker compose -f docker-compose.test.yml logs -f web nginx db
-```
+Django/Gunicorn host üzerinde yalnızca `127.0.0.1:5001` portuna yayınlanır.
+Mevcut host Nginx `https://testplatform.farmingo.com.tr` trafiğini bu porta proxy eder.
+`collectstatic` çıktısı `/var/www/platform_farmingo/` dizinine yazılır.
 
-## HTTPS kurulumu
-
-Web Push, uzak sunucuda HTTPS gerektirir.
-
-Önce şu dosyayı aç:
-
-```text
-scripts/bootstrap_test_https.sh
-```
-
-ve:
-
-```bash
-LETSENCRYPT_EMAIL="admin@example.com"
-```
-
-satırını kendi e-posta adresinle değiştir.
-
-Sonra:
-
-```bash
-chmod +x scripts/*.sh
-./scripts/bootstrap_test_https.sh
-```
-
-Başarılı olduğunda:
-
-```text
-https://31.97.37.175
-```
-
-üzerinden uygulamaya erişebilirsin.
-
-Sertifika yenileme:
-
-```bash
-./scripts/renew_ip_cert.sh
-```
+Eski IP tabanlı Docker Nginx/Certbot kurulumu bu sunucu düzeninde kullanılmaz.
 
 ## Local / test ayrımı nasıl yapılıyor?
 
-`.env` yerine compose dosyaları `entrypoint.sh` dosyasına mod gönderir.
+Compose dosyaları `entrypoint.sh` dosyasına yalnızca çalışma modunu (`local` / `test`) gönderir; uygulama ayarları için `.env` dosyası okunmaz.
 
 Local compose:
 

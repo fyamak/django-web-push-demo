@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: pushdemo
       POSTGRES_USER: pushdemo
-      POSTGRES_PASSWORD: pushdemo-test-password
+      POSTGRES_PASSWORD: as9EoNGjvMlVGYUjlAlWVagIDQtPQIou4nboZMCHLnc
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U pushdemo -d pushdemo"]
       interval: 3s
@@ -21,36 +21,16 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    expose:
-      - "8000"
-    volumes:
-      - static_test:/app/staticfiles
-      - vapid_test:/app/keys
-
-  nginx:
-    image: nginx:1.28-alpine
-    restart: unless-stopped
-    depends_on:
-      - web
+    # Host Nginx testplatform.farmingo.com.tr -> 127.0.0.1:5001 proxy yapar.
+    # Uygulama internete dogrudan acilmaz; sadece localhost'tan erisilebilir.
     ports:
-      - "80:80"
-      - "443:443"
+      - "127.0.0.1:5001:8000"
     volumes:
-      - ./nginx/active:/etc/nginx/conf.d:ro
-      - static_test:/static:ro
-      - certbot_www:/var/www/certbot:ro
-      - certbot_certs:/etc/letsencrypt:ro
-
-  certbot:
-    image: certbot/certbot:v5.4.0
-    profiles: ["tools"]
-    volumes:
-      - certbot_www:/var/www/certbot
-      - certbot_certs:/etc/letsencrypt
+      # Django collectstatic ciktisini host Nginx'in alias dizinine yazar.
+      - /var/www/platform_farmingo:/app/staticfiles
+      # VAPID anahtarlari rebuild/restart sonrasinda degismemeli.
+      - vapid_test:/app/keys
 
 volumes:
   postgres_test:
-  static_test:
   vapid_test:
-  certbot_www:
-  certbot_certs:
