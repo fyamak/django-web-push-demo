@@ -24,7 +24,7 @@ services:
     # Host Nginx testplatform.farmingo.com.tr -> 127.0.0.1:5001 proxy yapar.
     # Uygulama internete dogrudan acilmaz; sadece localhost'tan erisilebilir.
     ports:
-      - "127.0.0.1:5001:8000"
+      - "5001:8000"
     volumes:
       # Django collectstatic ciktisini host Nginx'in alias dizinine yazar.
       - /var/www/platform_farmingo:/app/staticfiles

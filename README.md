@@ -224,7 +224,7 @@ Telefon / bilgisayar bildirimi
 
 ## iPhone
 
-iPhone'da uygulamayı Safari üzerinden açıp **Ana Ekrana Ekle** yaptıktan sonra ana ekrandaki PWA üzerinden bildirim izni vermen gerekir.
+iPhone'da uygulamayı Safari üzerinden açıp **Ana Ekrana Ekle** yaptıktan sonra ana ekrandaki PWA üzerinden bildirim izni vermen gerekir. Cihazın iOS/iPadOS **16.4 veya üzeri** olması gerekiyor.
 
 ## Önemli
 

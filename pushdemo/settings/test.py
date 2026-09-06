@@ -1,6 +1,6 @@
 from .base import *  # noqa: F403,F401
 
-DEBUG = False
+DEBUG = True
 
 # Test sunucusu icin sabit ayarlar. Bu surum .env / env_file kullanmaz.
 SECRET_KEY = "O_5FzZySfgFderPM2uRaVTr9sQyPFJuzpjOBHD1hXxqnI3Fjp8VdQ7SwVaLr4bBQCSJ4adHx94rsIpmss_ZyNQ"
@@ -27,7 +27,7 @@ DATABASES = {
     }
 }
 
-VAPID_SUBJECT = "https://testplatform.farmingo.com.tr/"
+VAPID_SUBJECT = "https://testplatform.farmingo.com.tr"
 DEMO_USERNAME = "demo"
 DEMO_PASSWORD = "Demo12345!"
 DEMO_EMAIL = "demo@example.com"

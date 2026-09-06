@@ -67,7 +67,7 @@ LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/login/"
 
-VAPID_SUBJECT = "mailto:admin@example.com"
+VAPID_SUBJECT = "mailto:info@farmingo.com.tr"
 VAPID_PRIVATE_KEY_PATH = "/app/keys/vapid_private.pem"
 VAPID_PUBLIC_KEY_PATH = "/app/keys/vapid_public.txt"
 
