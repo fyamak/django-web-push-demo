@@ -3,9 +3,10 @@ import logging
 
 from django.conf import settings
 from django.urls import reverse
+from py_vapid import VapidException
 from pywebpush import WebPushException, webpush
 
-from .models import Notification, PushSubscription
+from .models import Notification, PushSubscription, UserNotificationPreference
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ def send_push_to_subscription(subscription, payload):
             timeout=15,
         )
         return True, None
-    except WebPushException as exc:
+    except (WebPushException, VapidException) as exc:
         status_code = getattr(getattr(exc, "response", None), "status_code", None)
         if status_code in (404, 410):
             subscription.delete()
@@ -31,18 +32,54 @@ def send_push_to_subscription(subscription, payload):
         return False, str(exc)
 
 
-def send_push_to_user(user, title, body, url="/"):
-    # Her gönderim önce DB'ye ayrı bir bildirim kaydı olarak yazılır.
-    # Bu kayıt işletim sistemi bildirim geçmişinden bağımsız kalıcı geçmiş sağlar.
+def is_category_enabled_for_user(user, category):
+    """Only an explicit enabled preference opts a user into a category."""
+    if category is None:
+        return True
+
+    explicit = UserNotificationPreference.objects.filter(
+        user=user,
+        category=category,
+    ).values_list("enabled", flat=True).first()
+
+    return explicit is True
+
+
+def send_push_to_user(user, title, body, url="/", category=None, respect_preferences=True):
+    """Send one logical notification to every active browser subscription of a user.
+
+    Categorized notifications honor that recipient's preference. If the category is
+    disabled, no Notification history row and no push delivery are created.
+    Uncategorized technical/test notifications can still be sent when desired.
+    """
+    if category is not None and not category.is_active:
+        return {
+            "notification_id": None,
+            "sent": 0,
+            "failed": 0,
+            "errors": [],
+            "skipped": True,
+            "skip_reason": "category_inactive",
+        }
+
+    if respect_preferences and category is not None and not is_category_enabled_for_user(user, category):
+        return {
+            "notification_id": None,
+            "sent": 0,
+            "failed": 0,
+            "errors": [],
+            "skipped": True,
+            "skip_reason": "preference_disabled",
+        }
+
     notification = Notification.objects.create(
         user=user,
+        category=category,
         title=title,
         body=body,
         url=url,
     )
 
-    # Aynı `tag` tarayıcı/işletim sisteminde önceki bildirimin değiştirilmesine
-    # neden olur. Bu yüzden her bildirim için benzersiz tag kullanıyoruz.
     open_url = reverse("notifications:open_notification", args=[notification.pk])
     payload = {
         "notification_id": notification.pk,
@@ -50,6 +87,7 @@ def send_push_to_user(user, title, body, url="/"):
         "body": body,
         "url": open_url,
         "tag": f"notification-{notification.pk}",
+        "category": category.code if category else None,
     }
 
     sent = 0
@@ -74,4 +112,6 @@ def send_push_to_user(user, title, body, url="/"):
         "sent": sent,
         "failed": failed,
         "errors": errors,
+        "skipped": False,
+        "skip_reason": None,
     }

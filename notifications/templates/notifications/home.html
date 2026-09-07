@@ -12,12 +12,12 @@
   <title>Django Web Push Demo</title>
   <style>
     *{box-sizing:border-box} body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:#f3f4f6;color:#111827}
-    .container{max-width:900px;margin:auto;padding:20px}.top{display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap}
+    .container{max-width:980px;margin:auto;padding:20px}.top{display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap}
     .card{background:white;border-radius:16px;padding:20px;margin:16px 0;box-shadow:0 8px 26px rgba(0,0,0,.06)}
     .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}.status{padding:12px;background:#f9fafb;border-radius:10px}
     button{border:0;border-radius:10px;padding:11px 15px;font-weight:700;cursor:pointer;background:#111827;color:white;margin:4px 4px 4px 0}
     button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c1c}button:disabled{opacity:.5;cursor:not-allowed}
-    input,textarea{width:100%;padding:11px;border:1px solid #d1d5db;border-radius:9px;font:inherit;margin:5px 0 12px}textarea{min-height:90px}
+    input,textarea,select{width:100%;padding:11px;border:1px solid #d1d5db;border-radius:9px;font:inherit;margin:5px 0 12px;background:white}textarea{min-height:90px}
     code{background:#f3f4f6;padding:2px 5px;border-radius:5px}.log{white-space:pre-wrap;background:#111827;color:#e5e7eb;padding:14px;border-radius:10px;min-height:100px;max-height:260px;overflow:auto;font:13px ui-monospace,monospace}
     .ok{color:#047857}.warn{color:#b45309}.small{font-size:14px;color:#4b5563}.pill{display:inline-block;padding:5px 9px;border-radius:999px;background:#e5e7eb;font-size:13px}
     form.logout{display:inline} form.logout button{background:#374151}
@@ -26,12 +26,19 @@
     .notification-item:hover{border-color:#9ca3af;transform:translateY(-1px)}.notification-item.unread{border-left:5px solid #111827;background:#f9fafb}
     .notification-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.notification-date{font-size:12px;color:#6b7280;white-space:nowrap}
     .notification-body{margin-top:6px;color:#374151;line-height:1.45}.notification-meta{margin-top:8px;font-size:12px;color:#6b7280}.history-empty{padding:18px;text-align:center;color:#6b7280;background:#f9fafb;border-radius:10px}
+    .preferences{display:grid;gap:10px;margin:14px 0}.preference{display:flex;gap:12px;align-items:flex-start;padding:13px;border:1px solid #e5e7eb;border-radius:12px;background:#f9fafb}
+    .preference input{width:20px;height:20px;margin:2px 0 0;flex:0 0 auto}.preference label{cursor:pointer;flex:1}.preference strong{display:block}.preference .small{margin-top:3px}
+    .admin-card{border:2px solid #d1d5db}.section-badge{font-size:12px;background:#111827;color:#fff;padding:4px 8px;border-radius:999px;vertical-align:middle;margin-left:6px}
+    .result-box{display:none;padding:12px;border-radius:10px;background:#f9fafb;margin-top:10px}.result-box.visible{display:block}
   </style>
 </head>
-<body data-vapid-public-key="{{ vapid_public_key }}">
+<body data-vapid-public-key="{{ vapid_public_key }}" data-user-id="{{ request.user.id }}">
 <div class="container">
   <div class="top">
-    <div><h1>Django Web Push Demo</h1><div class="small">Kullanıcı: <strong>{{ request.user.username }}</strong></div></div>
+    <div>
+      <h1>Django Web Push Demo</h1>
+      <div class="small">Kullanıcı: <strong>{{ request.user.username }}</strong>{% if request.user.is_staff %} · <span class="pill">Gönderici yetkisi</span>{% endif %}</div>
+    </div>
     <form class="logout" method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Çıkış</button></form>
   </div>
 
@@ -54,7 +61,61 @@
   </div>
 
   <div class="card">
-    <h2>3. Kendine test bildirimi gönder</h2>
+    <h2>3. Bildirim tercihlerim</h2>
+    <p class="small">Yalnızca açık bıraktığın kategorilerdeki gerçek bildirimler sana gönderilir. Teknik test bildirimi bu tercihlerden bağımsızdır.</p>
+    <div id="preferencesList" class="preferences">
+      {% for item in preference_items %}
+        <div class="preference">
+          <input class="preference-checkbox" type="checkbox" id="pref-{{ item.id }}" value="{{ item.id }}" {% if item.enabled %}checked{% endif %}>
+          <label for="pref-{{ item.id }}">
+            <strong>{{ item.name }}</strong>
+            <div class="small">{{ item.description|default:"Bu kategorideki bildirimler." }}</div>
+          </label>
+        </div>
+      {% empty %}
+        <div class="history-empty">Henüz aktif bildirim kategorisi tanımlanmamış.</div>
+      {% endfor %}
+    </div>
+    {% if preference_items %}<button id="savePreferencesBtn">Tercihlerimi kaydet</button>{% endif %}
+  </div>
+
+  {% if request.user.is_staff %}
+  <div class="card admin-card">
+    <h2>4. Kullanıcıya bildirim gönder <span class="section-badge">STAFF</span></h2>
+    <p class="small">Buradaki gönderimler seçilen kullanıcının kategori tercihini kontrol eder. Kullanıcı kategoriyi kapattıysa push ve geçmiş kaydı oluşturulmaz.</p>
+
+    <div class="grid">
+      <div>
+        <label for="targetUser">Hedef kullanıcı</label>
+        <select id="targetUser">
+          {% for user in target_users %}
+            <option value="{{ user.id }}">{{ user.username }}{% if user.email %} · {{ user.email }}{% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="targetCategory">Bildirim kategorisi</label>
+        <select id="targetCategory">
+          {% for category in notification_categories %}
+            <option value="{{ category.id }}">{{ category.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <label for="targetTitle">Başlık</label>
+    <input id="targetTitle" value="Yeni bildirim">
+    <label for="targetBody">Mesaj</label>
+    <textarea id="targetBody">Size özel yeni bir bildiriminiz var.</textarea>
+    <label for="targetUrl">Tıklanınca açılacak adres</label>
+    <input id="targetUrl" value="/">
+    <button id="sendToUserBtn">Kullanıcıya gönder</button>
+    <div id="sendToUserResult" class="result-box"></div>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <h2>{% if request.user.is_staff %}5{% else %}4{% endif %}. Kendime teknik test bildirimi gönder</h2>
     <label>Başlık</label>
     <input id="title" value="Django test bildirimi">
     <label>Mesaj</label>
@@ -62,7 +123,7 @@
     <label>Tıklanınca açılacak adres</label>
     <input id="url" value="/">
     <button id="sendBtn">Test bildirimi gönder</button>
-    <p class="small">Her gönderim benzersiz bir bildirim olarak gösterilir ve ayrıca Django veritabanında geçmişe kaydedilir.</p>
+    <p class="small">Bu buton yalnızca Web Push altyapısını test eder ve kategori tercihlerini kontrol etmez.</p>
   </div>
 
   <div class="card">
@@ -82,7 +143,7 @@
             <span class="notification-date">{{ notification.created_at|date:"d.m.Y H:i" }}</span>
           </div>
           <div class="notification-body">{{ notification.body }}</div>
-          <div class="notification-meta">Gönderim: {{ notification.sent_count }} başarılı, {{ notification.failed_count }} başarısız · {% if notification.is_read %}okundu{% else %}okunmadı{% endif %}</div>
+          <div class="notification-meta">{% if notification.category %}{{ notification.category.name }} · {% endif %}Gönderim: {{ notification.sent_count }} başarılı, {{ notification.failed_count }} başarısız · {% if notification.is_read %}okundu{% else %}okunmadı{% endif %}</div>
         </a>
       {% empty %}
         <div class="history-empty">Henüz bildirim yok.</div>

@@ -7,6 +7,9 @@
   const markAllReadBtn = document.getElementById("markAllReadBtn");
   const historyList = document.getElementById("historyList");
   const unreadCount = document.getElementById("unreadCount");
+  const savePreferencesBtn = document.getElementById("savePreferencesBtn");
+  const sendToUserBtn = document.getElementById("sendToUserBtn");
+  const sendToUserResult = document.getElementById("sendToUserResult");
   const publicKey = document.body.dataset.vapidPublicKey;
   let deferredInstallPrompt = null;
 
@@ -67,9 +70,6 @@
     const subscription = await registration.pushManager.getSubscription();
     if (!subscription) return null;
 
-    // Aynı domain daha önce başka bir Web Push uygulaması tarafından kullanıldıysa
-    // tarayıcı eski VAPID public key'e bağlı subscription'ı tutabilir. Yeni backend'in
-    // private key'iyle bu endpoint'e push gönderilemez; bu yüzden eski aboneliği yenile.
     if (!applicationServerKeyMatches(subscription)) {
       log("Eski VAPID anahtarına ait push aboneliği bulundu; yenileniyor.");
       try {
@@ -176,7 +176,8 @@
 
       const meta = document.createElement("div");
       meta.className = "notification-meta";
-      meta.textContent = `Gönderim: ${item.sent_count} başarılı, ${item.failed_count} başarısız${item.is_read ? " · okundu" : " · okunmadı"}`;
+      const categoryPrefix = item.category?.name ? `${item.category.name} · ` : "";
+      meta.textContent = `${categoryPrefix}Gönderim: ${item.sent_count} başarılı, ${item.failed_count} başarısız${item.is_read ? " · okundu" : " · okunmadı"}`;
 
       link.append(head, body, meta);
       historyList.appendChild(link);
@@ -203,6 +204,23 @@
     }
   }
 
+  async function savePreferences() {
+    try {
+      savePreferencesBtn.disabled = true;
+      const enabledCategoryIds = [...document.querySelectorAll(".preference-checkbox:checked")].map((item) => Number(item.value));
+      const result = await postJson("/api/notification-preferences/save/", {
+        enabled_category_ids: enabledCategoryIds,
+      });
+      log("Bildirim tercihleri kaydedildi.", result);
+      alert("Bildirim tercihlerin kaydedildi.");
+    } catch (error) {
+      log(`Tercih kaydetme hatası: ${error.message}`);
+      alert(error.message);
+    } finally {
+      savePreferencesBtn.disabled = false;
+    }
+  }
+
   async function sendTest() {
     try {
       sendBtn.disabled = true;
@@ -211,15 +229,45 @@
         body: document.getElementById("body").value,
         url: document.getElementById("url").value,
       });
-      log("Django push gönderim sonucu", result);
+      log("Django teknik push gönderim sonucu", result);
       await refreshNotificationHistory();
     } catch (error) {
-      // Push gönderimi başarısız olsa dahi backend geçmiş kaydını oluşturmuş olabilir.
       await refreshNotificationHistory();
       log(`Push gönderim hatası: ${error.message}`);
       alert(error.message);
     } finally {
       sendBtn.disabled = false;
+    }
+  }
+
+  async function sendToUser() {
+    try {
+      sendToUserBtn.disabled = true;
+      sendToUserResult.className = "result-box";
+      sendToUserResult.textContent = "";
+
+      const result = await postJson("/api/push/send-to-user/", {
+        user_id: Number(document.getElementById("targetUser").value),
+        category_id: Number(document.getElementById("targetCategory").value),
+        title: document.getElementById("targetTitle").value,
+        body: document.getElementById("targetBody").value,
+        url: document.getElementById("targetUrl").value,
+      });
+
+      const message = result.message || `Gönderim sonucu: ${result.sent} başarılı, ${result.failed} başarısız.`;
+      sendToUserResult.textContent = message;
+      sendToUserResult.className = `result-box visible${result.skipped ? " warn" : " ok"}`;
+      log("Kullanıcı bazlı bildirim sonucu", result);
+
+      if (Number(document.getElementById("targetUser").value) === Number(document.body.dataset.userId)) {
+        await refreshNotificationHistory();
+      }
+    } catch (error) {
+      sendToUserResult.textContent = error.message;
+      sendToUserResult.className = "result-box visible warn";
+      log(`Kullanıcıya gönderim hatası: ${error.message}`);
+    } finally {
+      sendToUserBtn.disabled = false;
     }
   }
 
@@ -258,5 +306,7 @@
   disableBtn.addEventListener("click", disableNotifications);
   sendBtn.addEventListener("click", sendTest);
   markAllReadBtn.addEventListener("click", markAllRead);
+  if (savePreferencesBtn) savePreferencesBtn.addEventListener("click", savePreferences);
+  if (sendToUserBtn) sendToUserBtn.addEventListener("click", sendToUser);
   init();
 })();

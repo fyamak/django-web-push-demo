@@ -5,8 +5,13 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import Notification, PushSubscription
-from .services import send_push_to_user
+from .models import (
+    Notification,
+    NotificationCategory,
+    PushSubscription,
+    UserNotificationPreference,
+)
+from .services import is_category_enabled_for_user, send_push_to_user
 
 
 class PushSubscriptionTests(TestCase):
@@ -29,8 +34,15 @@ class PushSubscriptionTests(TestCase):
         self.assertEqual(PushSubscription.objects.get().user, self.user)
 
     @patch("notifications.views.send_push_to_user")
-    def test_send_test_calls_service(self, mock_send):
-        mock_send.return_value = {"notification_id": 1, "sent": 1, "failed": 0, "errors": []}
+    def test_send_test_is_always_self_and_bypasses_preferences(self, mock_send):
+        mock_send.return_value = {
+            "notification_id": 1,
+            "sent": 1,
+            "failed": 0,
+            "errors": [],
+            "skipped": False,
+            "skip_reason": None,
+        }
         response = self.client.post(
             reverse("notifications:send_test"),
             data=json.dumps({"title": "x", "body": "y", "url": "/"}),
@@ -38,9 +50,202 @@ class PushSubscriptionTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         mock_send.assert_called_once()
+        args, kwargs = mock_send.call_args
+        self.assertEqual(args[0], self.user)
+        self.assertIsNone(kwargs["category"])
+        self.assertFalse(kwargs["respect_preferences"])
 
 
-class NotificationTests(TestCase):
+class NotificationPreferenceTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(username="pref-user", password="secret123")
+        self.category_on = NotificationCategory.objects.create(
+            code="orders-test",
+            name="Sipariş Test",
+            sort_order=1,
+        )
+        self.category_off = NotificationCategory.objects.create(
+            code="campaign-test",
+            name="Kampanya Test",
+            sort_order=2,
+        )
+        self.client.force_login(self.user)
+
+    def test_missing_explicit_preference_is_disabled(self):
+        self.assertFalse(is_category_enabled_for_user(self.user, self.category_on))
+        self.assertFalse(is_category_enabled_for_user(self.user, self.category_off))
+
+    def test_save_preferences_creates_explicit_values_for_all_active_categories(self):
+        response = self.client.post(
+            reverse("notifications:save_notification_preferences"),
+            data=json.dumps({"enabled_category_ids": [self.category_off.pk]}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(
+            UserNotificationPreference.objects.get(user=self.user, category=self.category_on).enabled
+        )
+        self.assertTrue(
+            UserNotificationPreference.objects.get(user=self.user, category=self.category_off).enabled
+        )
+
+    @patch("notifications.services.send_push_to_subscription")
+    def test_disabled_category_is_skipped_without_history(self, mock_send):
+        UserNotificationPreference.objects.create(
+            user=self.user,
+            category=self.category_on,
+            enabled=False,
+        )
+        PushSubscription.objects.create(
+            user=self.user,
+            endpoint="https://push.example/disabled",
+            p256dh="p256dh",
+            auth="auth",
+        )
+
+        result = send_push_to_user(
+            self.user,
+            "Sipariş",
+            "Mesaj",
+            category=self.category_on,
+        )
+
+        self.assertTrue(result["skipped"])
+        self.assertEqual(result["skip_reason"], "preference_disabled")
+        self.assertEqual(Notification.objects.filter(user=self.user).count(), 0)
+        mock_send.assert_not_called()
+
+    @patch("notifications.services.send_push_to_subscription")
+    def test_enabled_category_sends_and_writes_category_to_history(self, mock_send):
+        mock_send.return_value = (True, None)
+        UserNotificationPreference.objects.create(
+            user=self.user,
+            category=self.category_off,
+            enabled=True,
+        )
+        PushSubscription.objects.create(
+            user=self.user,
+            endpoint="https://push.example/enabled",
+            p256dh="p256dh",
+            auth="auth",
+        )
+
+        result = send_push_to_user(
+            self.user,
+            "Kampanya",
+            "Mesaj",
+            category=self.category_off,
+        )
+
+        self.assertFalse(result["skipped"])
+        self.assertEqual(result["sent"], 1)
+        item = Notification.objects.get(pk=result["notification_id"])
+        self.assertEqual(item.category, self.category_off)
+        payload = mock_send.call_args.args[1]
+        self.assertEqual(payload["category"], self.category_off.code)
+
+
+class TargetedNotificationTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.staff = User.objects.create_user(
+            username="sender",
+            password="secret123",
+            is_staff=True,
+        )
+        self.recipient = User.objects.create_user(username="recipient", password="secret123")
+        self.other = User.objects.create_user(username="other", password="secret123")
+        self.category = NotificationCategory.objects.create(
+            code="targeted-test",
+            name="Hedefli Test",
+        )
+        PushSubscription.objects.create(
+            user=self.recipient,
+            endpoint="https://push.example/recipient",
+            p256dh="p256dh",
+            auth="auth",
+        )
+        UserNotificationPreference.objects.create(
+            user=self.recipient,
+            category=self.category,
+            enabled=True,
+        )
+
+    @patch("notifications.services.send_push_to_subscription")
+    def test_staff_can_send_to_selected_user(self, mock_send):
+        mock_send.return_value = (True, None)
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("notifications:send_to_user"),
+            data=json.dumps(
+                {
+                    "user_id": self.recipient.pk,
+                    "category_id": self.category.pk,
+                    "title": "Hedef",
+                    "body": "Sadece alıcı",
+                    "url": "/",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+        self.assertEqual(Notification.objects.filter(user=self.recipient).count(), 1)
+        self.assertEqual(Notification.objects.filter(user=self.other).count(), 0)
+        self.assertEqual(Notification.objects.filter(user=self.staff).count(), 0)
+
+    @patch("notifications.services.send_push_to_subscription")
+    def test_recipient_preference_blocks_staff_send(self, mock_send):
+        UserNotificationPreference.objects.filter(
+            user=self.recipient,
+            category=self.category,
+        ).update(enabled=False)
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("notifications:send_to_user"),
+            data=json.dumps(
+                {
+                    "user_id": self.recipient.pk,
+                    "category_id": self.category.pk,
+                    "title": "Hedef",
+                    "body": "Engellenmeli",
+                    "url": "/",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertTrue(data["skipped"])
+        self.assertEqual(data["skip_reason"], "preference_disabled")
+        self.assertEqual(Notification.objects.filter(user=self.recipient).count(), 0)
+        mock_send.assert_not_called()
+
+    def test_non_staff_cannot_send_to_other_user(self):
+        self.client.force_login(self.other)
+        response = self.client.post(
+            reverse("notifications:send_to_user"),
+            data=json.dumps(
+                {
+                    "user_id": self.recipient.pk,
+                    "category_id": self.category.pk,
+                    "title": "Yetkisiz",
+                    "body": "Olmamalı",
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(Notification.objects.count(), 0)
+
+
+class NotificationHistoryTests(TestCase):
     def setUp(self):
         User = get_user_model()
         self.user = User.objects.create_user(username="history-tester", password="secret123")
@@ -56,9 +261,9 @@ class NotificationTests(TestCase):
             auth="auth",
         )
 
-        first = send_push_to_user(self.user, "Birinci", "İlk mesaj")
+        first = send_push_to_user(self.user, "Birinci", "İlk mesaj", respect_preferences=False)
         first_payload = mock_send.call_args.args[1]
-        second = send_push_to_user(self.user, "İkinci", "İkinci mesaj")
+        second = send_push_to_user(self.user, "İkinci", "İkinci mesaj", respect_preferences=False)
         second_payload = mock_send.call_args.args[1]
 
         self.assertEqual(Notification.objects.filter(user=self.user).count(), 2)
@@ -83,7 +288,7 @@ class NotificationTests(TestCase):
 
     def test_user_cannot_open_another_users_notification(self):
         User = get_user_model()
-        other = User.objects.create_user(username="other", password="secret123")
+        other = User.objects.create_user(username="other-history", password="secret123")
         item = Notification.objects.create(user=other, title="Özel", body="Mesaj")
 
         response = self.client.get(reverse("notifications:open_notification", args=[item.pk]))
@@ -107,7 +312,11 @@ class NotificationTests(TestCase):
         own = Notification.objects.create(user=self.user, title="Benim", body="Mesaj")
         foreign = Notification.objects.create(user=other, title="Başkasının", body="Mesaj")
 
-        response = self.client.post(reverse("notifications:mark_all_notifications_read"), data="{}", content_type="application/json")
+        response = self.client.post(
+            reverse("notifications:mark_all_notifications_read"),
+            data="{}",
+            content_type="application/json",
+        )
         self.assertEqual(response.status_code, 200)
 
         own.refresh_from_db()

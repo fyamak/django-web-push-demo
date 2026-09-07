@@ -74,3 +74,5 @@ VAPID_PUBLIC_KEY_PATH = "/app/keys/vapid_public.txt"
 DEMO_USERNAME = "demo"
 DEMO_PASSWORD = "Demo12345!"
 DEMO_EMAIL = "demo@example.com"
+
+DEMO_IS_STAFF = True

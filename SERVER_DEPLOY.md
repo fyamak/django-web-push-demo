@@ -75,3 +75,26 @@ karsilastirir; uyusmuyorsa eski aboneligi kaldirir. Kullanici daha sonra
 
 VAPID private/public key'leri `vapid_test` Docker volume'unda saklanir. Bu volume'u
 her deploy'da silmeyin; silerseniz tum istemcilerin yeniden abone olmasi gerekir.
+
+## Kullanıcı bazlı bildirim sürümüne güncelleme
+
+Bu sürüm `0003_notification_categories_and_preferences` migration'ını içerir. Container başlangıcında `python manage.py migrate --noinput` otomatik çalıştığı için normal rebuild yeterlidir:
+
+```bash
+cd /home/notification/django-web-push-demo
+docker-compose -f docker-compose.test.yml down
+docker-compose -f docker-compose.test.yml up -d --build
+```
+
+Veritabanı ve VAPID volume'larını silmeyin; `down -v` kullanmayın.
+
+Kontrol:
+
+```bash
+docker-compose -f docker-compose.test.yml logs --tail=200 web
+docker-compose -f docker-compose.test.yml exec web python manage.py showmigrations notifications
+```
+
+`0003_notification_categories_and_preferences` satırında `[X]` görülmelidir.
+
+Test ortamında `demo` kullanıcısı `DEMO_IS_STAFF = True` ile gönderici panelini görebilir. Hedef kullanıcıların ayrıca kendi hesaplarıyla giriş yapıp **Bildirimleri etkinleştir** demesi ve en az bir bildirim kategorisini seçip tercihlerini kaydetmesi gerekir.

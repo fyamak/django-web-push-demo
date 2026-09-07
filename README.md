@@ -239,3 +239,96 @@ Her gönderim artık `Notification` tablosunda ayrı bir kayıt oluşturur. Push
 Web Notification API'de aynı `tag` değerini tekrar kullanmak önceki bildirimin yeni bildirimle değiştirilmesine neden olabilir. Bu nedenle sabit tag kullanılmamalıdır.
 
 Uygulama ana sayfasındaki **Bildirim geçmişi** bölümü son 50 bildirimi gösterir. İşletim sistemi bildirimi kullanıcı tarafından temizlense bile bu geçmiş Django veritabanında kalır. Bildirime tıklanınca kayıt okundu olarak işaretlenir ve bildirimin hedef adresine yönlendirilir.
+
+## Kullanıcı bazlı gönderim ve bildirim tercihleri
+
+Bu sürümde gerçek bildirimler kullanıcı bazlı gönderilir.
+
+- `staff` yetkili kullanıcı ana ekrandaki **Kullanıcıya bildirim gönder** bölümünden hedef kullanıcıyı seçer.
+- Gönderimde bir bildirim kategorisi seçmek zorunludur.
+- Hedef kullanıcının o kategori için açık tercihi yoksa gönderim **atlanır**.
+- Tercih kapalı olduğunda push gönderilmez ve kullanıcının bildirim geçmişine kayıt oluşturulmaz.
+- Kullanıcı kendi **Bildirim tercihlerim** bölümünden kategorileri açıp kapatır.
+- Yeni kategoriler Django admin üzerinden `NotificationCategory` tablosundan yönetilebilir.
+- Teknik **Kendime test bildirimi** kategori tercihlerinden bağımsızdır; yalnızca Web Push altyapısını test etmek içindir.
+
+İlk migration ile örnek kategoriler oluşturulur:
+
+```text
+Genel
+Siparişler
+Kampanyalar
+Sistem
+```
+
+Yeni kullanıcılar hiçbir kategoriye otomatik abone edilmez. Kullanıcının kategoriyi açıkça seçip tercihlerini kaydetmesi gerekir.
+
+### İlgili modeller
+
+```text
+PushSubscription
+NotificationCategory
+UserNotificationPreference
+Notification
+```
+
+`Notification.category` alanı sayesinde geçmişte bildirimin hangi kategoriden geldiği de görülebilir.
+
+### Staff gönderim API'si
+
+```text
+POST /api/push/send-to-user/
+```
+
+Örnek JSON:
+
+```json
+{
+  "user_id": 12,
+  "category_id": 2,
+  "title": "Siparişiniz hazır",
+  "body": "Siparişiniz teslimata hazırlandı.",
+  "url": "/orders/123/"
+}
+```
+
+Bu endpoint yalnızca `is_staff=True` kullanıcılar tarafından kullanılabilir.
+
+### Tercih API'si
+
+Kullanıcının kendi tercihlerini okumak:
+
+```text
+GET /api/notification-preferences/
+```
+
+Kaydetmek:
+
+```text
+POST /api/notification-preferences/save/
+```
+
+Örnek:
+
+```json
+{
+  "enabled_category_ids": [1, 2]
+}
+```
+
+Listede olmayan aktif kategoriler kapalı olarak kaydedilir.
+
+### Management command
+
+Kategori tercihine uyarak kullanıcıya gönderim:
+
+```bash
+docker compose -f docker-compose.test.yml exec web \
+  python manage.py send_push \
+  --username demo \
+  --category orders \
+  --title "Sipariş" \
+  --body "Siparişiniz hazır."
+```
+
+Teknik/özel durumda tercihi yok saymak gerekirse `--ignore-preferences` kullanılabilir. Normal ürün bildirimlerinde bu seçenek kullanılmamalıdır.

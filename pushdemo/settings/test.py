@@ -31,6 +31,7 @@ VAPID_SUBJECT = "https://testplatform.farmingo.com.tr"
 DEMO_USERNAME = "demo"
 DEMO_PASSWORD = "Demo12345!"
 DEMO_EMAIL = "demo@example.com"
+DEMO_IS_STAFF = True
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_SECURE = True

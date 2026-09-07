@@ -10,7 +10,10 @@ urlpatterns = [
     path("notifications/<int:notification_id>/open/", views.open_notification, name="open_notification"),
     path("api/notifications/", views.notification_history, name="notification_history"),
     path("api/notifications/mark-all-read/", views.mark_all_notifications_read, name="mark_all_notifications_read"),
+    path("api/notification-preferences/", views.notification_preferences, name="notification_preferences"),
+    path("api/notification-preferences/save/", views.save_notification_preferences, name="save_notification_preferences"),
     path("api/push/subscribe/", views.subscribe, name="subscribe"),
     path("api/push/unsubscribe/", views.unsubscribe, name="unsubscribe"),
     path("api/push/send-test/", views.send_test, name="send_test"),
+    path("api/push/send-to-user/", views.send_to_user, name="send_to_user"),
 ]
