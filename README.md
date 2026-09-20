@@ -5,8 +5,8 @@ Bu proje Django uygulamasında **ücretsiz standart Web Push** kullanımını lo
 Kullanılan yapı:
 
 - Django 5.2
-- PostgreSQL
-- Docker / Docker Compose
+- Host makinede PostgreSQL
+- Docker / Docker Compose (Django web container)
 - PWA manifest
 - Service Worker
 - Web Push API
@@ -40,13 +40,13 @@ Django local ayarları:
 pushdemo/settings/local.py
 ```
 
-PostgreSQL local bilgileri hem `local.py` hem de `docker-compose.local.yml` içinde aynıdır:
+PostgreSQL local bilgileri `local.py` icinde tanimlidir. PostgreSQL artik Docker servisi degildir; host makinede calisir:
 
 ```text
 Database: pushdemo
 User: pushdemo
 Password: pushdemo-local-password
-Host: db
+Host: host.docker.internal (Django container tarafindan)
 Port: 5432
 ```
 
@@ -81,9 +81,9 @@ Kullanıcı adı: demo
 Şifre: Demo12345!
 ```
 
-İlk açılışta container otomatik olarak:
+Host PostgreSQL daha once kurulmus ve `pushdemo` DB/user olusturulmus olmalidir. Ilk acilista web container:
 
-1. migration'ları uygular,
+1. PostgreSQL baglantisini bekler ve migration'ları uygular,
 2. VAPID anahtarlarını oluşturur,
 3. demo kullanıcısını oluşturur,
 4. Django development server'ı başlatır.
@@ -96,11 +96,7 @@ VAPID anahtarları `vapid_local` Docker volume'unda tutulur.
 docker compose -f docker-compose.local.yml logs -f web
 ```
 
-PostgreSQL logları:
-
-```powershell
-docker compose -f docker-compose.local.yml logs -f db
-```
+PostgreSQL host servisidir; loglari isletim sistemindeki PostgreSQL servisinden izlenir.
 
 ## Terminalden test push gönderme
 
@@ -109,6 +105,17 @@ docker compose -f docker-compose.local.yml exec web python manage.py send_push -
 ```
 
 Önce tarayıcı üzerinden giriş yapıp **Bildirimleri etkinleştir** butonuna basman gerekir. Böylece tarayıcı subscription bilgisi veritabanına kaydedilir.
+
+
+## PostgreSQL artik Docker disinda
+
+Bu surumde `docker-compose.local.yml` ve `docker-compose.test.yml` icinde `db` servisi yoktur. Ayrintili host PostgreSQL kurulumu ve mevcut Docker DB verisini kaybetmeden tasima adimlari:
+
+```text
+DATABASE_SETUP.md
+```
+
+Test sunucusunda web container `network_mode: host` ile calisir ve host PostgreSQL'e `127.0.0.1:5432` uzerinden baglanir. Gunicorn da sadece `127.0.0.1:5001` uzerinde dinler.
 
 ## Test sunucusu — testplatform.farmingo.com.tr
 
@@ -182,7 +189,7 @@ pushdemo/settings/test.py
 docker-compose.test.yml
 ```
 
-PostgreSQL kullanıcı adı/parolasını değiştirirsen Django settings ve compose tarafındaki değerleri birlikte değiştirmen gerekir.
+PostgreSQL kullanıcı adı/parolasını değiştirirsen ilgili Django settings dosyasini ve host PostgreSQL rol parolasini birlikte degistirmen gerekir.
 
 ## Demo kullanıcı bilgileri
 

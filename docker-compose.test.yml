@@ -1,38 +1,28 @@
 services:
-  db:
-    image: postgres:17-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: pushdemo
-      POSTGRES_USER: pushdemo
-      POSTGRES_PASSWORD: as9EoNGjvMlVGYUjlAlWVagIDQtPQIou4nboZMCHLnc
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pushdemo -d pushdemo"]
-      interval: 3s
-      timeout: 3s
-      retries: 20
-    volumes:
-      - postgres_test:/var/lib/postgresql/data
-
   web:
     build: .
+    container_name: notification_web_test
     environment:
       DJANGO_SETTINGS_MODULE: pushdemo.settings.test
     restart: unless-stopped
     command: ["test"]
-    depends_on:
-      db:
-        condition: service_healthy
-    # Host Nginx testplatform.farmingo.com.tr -> 127.0.0.1:5001 proxy yapar.
-    # Uygulama internete dogrudan acilmaz; sadece localhost'tan erisilebilir.
+
     ports:
       - "127.0.0.1:5001:8000"
     volumes:
-      # Django collectstatic ciktisini host Nginx'in alias dizinine yazar.
       - /var/www/platform_farmingo:/app/staticfiles
-      # VAPID anahtarlari rebuild/restart sonrasinda degismemeli.
       - vapid_test:/app/keys
+    networks:
+      notification:
 
 volumes:
-  postgres_test:
   vapid_test:
+
+networks:
+  notification:
+    name: notification
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.0.0/24
+          gateway: 172.40.0.1

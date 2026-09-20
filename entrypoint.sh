@@ -18,7 +18,9 @@ python manage.py ensure_demo_user
 
 if [ "$MODE" = "test" ]; then
   python manage.py collectstatic --noinput
-  exec gunicorn pushdemo.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 60
+  # network_mode: host kullanildigi icin Gunicorn dogrudan host localhost:5001'e
+  # bind edilir. Host Nginx ayni adrese proxy yapar.
+  exec gunicorn pushdemo.wsgi:application --bind 127.0.0.1:5001 --workers 2 --timeout 60
 fi
 
 exec python manage.py runserver 0.0.0.0:8000

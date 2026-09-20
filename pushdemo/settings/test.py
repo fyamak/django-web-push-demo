@@ -1,33 +1,26 @@
-from .base import *  # noqa: F403,F401
+from .base import * 
 
 DEBUG = True
-
-# Test sunucusu icin sabit ayarlar. Bu surum .env / env_file kullanmaz.
 SECRET_KEY = "O_5FzZySfgFderPM2uRaVTr9sQyPFJuzpjOBHD1hXxqnI3Fjp8VdQ7SwVaLr4bBQCSJ4adHx94rsIpmss_ZyNQ"
+ALLOWED_HOSTS = ["testplatform.farmingo.com.tr", "localhost", "127.0.0.1",]
 
-ALLOWED_HOSTS = [
-    "testplatform.farmingo.com.tr",
-    "localhost",
-    "127.0.0.1",
-]
-
-CSRF_TRUSTED_ORIGINS = [
-    "https://testplatform.farmingo.com.tr",
-]
+CSRF_TRUSTED_ORIGINS = ["https://testplatform.farmingo.com.tr",]
 
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": "pushdemo",
+        "NAME": "notification",
         "USER": "pushdemo",
-        "PASSWORD": "as9EoNGjvMlVGYUjlAlWVagIDQtPQIou4nboZMCHLnc",
-        "HOST": "db",
+        "PASSWORD": "pushdemo",
+        "HOST": "host.docker.internal",
         "PORT": "5432",
         "CONN_MAX_AGE": 60,
+        "CONN_HEALTH_CHECKS": True,
+        "OPTIONS": {"connect_timeout": 5},
     }
 }
 
-VAPID_SUBJECT = "https://testplatform.farmingo.com.tr"
+VAPID_SUBJECT = "mailto:info@farmingo.com.tr"
 DEMO_USERNAME = "demo"
 DEMO_PASSWORD = "Demo12345!"
 DEMO_EMAIL = "demo@example.com"
