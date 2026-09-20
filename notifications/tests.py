@@ -323,3 +323,81 @@ class NotificationHistoryTests(TestCase):
         foreign.refresh_from_db()
         self.assertIsNotNone(own.read_at)
         self.assertIsNone(foreign.read_at)
+
+
+class SignUpTests(TestCase):
+    def setUp(self):
+        self.category_a = NotificationCategory.objects.create(code="signup-general", name="Genel Kayıt")
+        self.category_b = NotificationCategory.objects.create(code="signup-orders", name="Sipariş Kayıt")
+
+    def test_login_page_links_to_signup(self):
+        response = self.client.get(reverse("login"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("notifications:signup"))
+
+    def test_signup_creates_normal_user_logs_in_and_initializes_preferences(self):
+        response = self.client.post(
+            reverse("notifications:signup"),
+            data={
+                "username": "new-user",
+                "email": "new-user@example.com",
+                "password1": "StrongSignupPass123!",
+                "password2": "StrongSignupPass123!",
+            },
+        )
+
+        self.assertRedirects(response, reverse("notifications:home"))
+        user = get_user_model().objects.get(username="new-user")
+        self.assertFalse(user.is_staff)
+        self.assertEqual(user.email, "new-user@example.com")
+        self.assertEqual(int(self.client.session["_auth_user_id"]), user.pk)
+
+        preferences = UserNotificationPreference.objects.filter(user=user)
+        self.assertEqual(
+            preferences.count(),
+            NotificationCategory.objects.filter(is_active=True).count(),
+        )
+        self.assertFalse(preferences.filter(enabled=True).exists())
+
+    def test_signed_in_user_is_redirected_away_from_signup(self):
+        user = get_user_model().objects.create_user(username="existing", password="StrongPass123!")
+        self.client.force_login(user)
+        response = self.client.get(reverse("notifications:signup"))
+        self.assertRedirects(response, reverse("notifications:home"))
+
+
+class TargetUserStateTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.staff = User.objects.create_user(username="staff-state", password="secret123", is_staff=True)
+        self.user = User.objects.create_user(username="state-user", email="state@example.com", password="secret123")
+        self.category_on = NotificationCategory.objects.create(code="state-on", name="Açık Kategori", sort_order=1)
+        self.category_off = NotificationCategory.objects.create(code="state-off", name="Kapalı Kategori", sort_order=2)
+        UserNotificationPreference.objects.create(user=self.user, category=self.category_on, enabled=True)
+        UserNotificationPreference.objects.create(user=self.user, category=self.category_off, enabled=False)
+        PushSubscription.objects.create(
+            user=self.user,
+            endpoint="https://push.example/state-user",
+            p256dh="p256dh",
+            auth="auth",
+        )
+
+    def test_staff_can_view_selected_users_notification_state(self):
+        self.client.force_login(self.staff)
+        response = self.client.get(
+            reverse("notifications:target_user_notification_state", args=[self.user.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["user"]["username"], self.user.username)
+        self.assertEqual(data["subscription_count"], 1)
+        prefs = {item["code"]: item["enabled"] for item in data["preferences"]}
+        self.assertTrue(prefs[self.category_on.code])
+        self.assertFalse(prefs[self.category_off.code])
+
+    def test_normal_user_cannot_view_another_users_notification_state(self):
+        self.client.force_login(self.user)
+        response = self.client.get(
+            reverse("notifications:target_user_notification_state", args=[self.staff.pk])
+        )
+        self.assertEqual(response.status_code, 403)

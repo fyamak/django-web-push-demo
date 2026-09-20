@@ -2,15 +2,16 @@ import json
 from pathlib import Path
 
 from django.conf import settings
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, login
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.http import HttpResponseRedirect, JsonResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
+from .forms import SignUpForm
 from .models import (
     Notification,
     NotificationCategory,
@@ -43,6 +44,33 @@ def _preference_items(user):
         }
         for category in categories
     ]
+
+
+@require_http_methods(["GET", "POST"])
+def signup(request):
+    """Create a normal end-user account and sign the user in immediately."""
+    if request.user.is_authenticated:
+        return redirect("notifications:home")
+
+    if request.method == "POST":
+        form = SignUpForm(request.POST)
+        if form.is_valid():
+            with transaction.atomic():
+                user = form.save()
+                active_categories = NotificationCategory.objects.filter(is_active=True)
+                UserNotificationPreference.objects.bulk_create(
+                    [
+                        UserNotificationPreference(user=user, category=category, enabled=False)
+                        for category in active_categories
+                    ],
+                    ignore_conflicts=True,
+                )
+            login(request, user)
+            return redirect("notifications:home")
+    else:
+        form = SignUpForm()
+
+    return render(request, "registration/signup.html", {"form": form})
 
 
 @login_required
@@ -261,6 +289,29 @@ def send_test(request):
     )
     status = 200 if result["sent"] > 0 else 400
     return JsonResponse({"ok": result["sent"] > 0, **result}, status=status)
+
+
+@login_required
+@require_GET
+def target_user_notification_state(request, user_id):
+    """Staff-only visibility into one recipient's push readiness and preferences."""
+    if not request.user.is_staff:
+        return JsonResponse({"ok": False, "error": "Bu işlem için yetkiniz yok."}, status=403)
+
+    User = get_user_model()
+    target_user = get_object_or_404(User, pk=user_id, is_active=True)
+    return JsonResponse(
+        {
+            "ok": True,
+            "user": {
+                "id": target_user.pk,
+                "username": target_user.username,
+                "email": target_user.email,
+            },
+            "subscription_count": PushSubscription.objects.filter(user=target_user).count(),
+            "preferences": _preference_items(target_user),
+        }
+    )
 
 
 @login_required

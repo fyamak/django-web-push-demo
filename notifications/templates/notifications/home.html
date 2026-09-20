@@ -5,6 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#111827">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="/manifest.json">
@@ -30,6 +31,7 @@
     .preference input{width:20px;height:20px;margin:2px 0 0;flex:0 0 auto}.preference label{cursor:pointer;flex:1}.preference strong{display:block}.preference .small{margin-top:3px}
     .admin-card{border:2px solid #d1d5db}.section-badge{font-size:12px;background:#111827;color:#fff;padding:4px 8px;border-radius:999px;vertical-align:middle;margin-left:6px}
     .result-box{display:none;padding:12px;border-radius:10px;background:#f9fafb;margin-top:10px}.result-box.visible{display:block}
+    .recipient-state{margin:2px 0 14px;padding:12px;border-radius:10px;background:#f9fafb;border:1px solid #e5e7eb}.recipient-state strong{display:block;margin-bottom:5px}.recipient-pref{display:inline-block;margin:4px 6px 0 0;padding:4px 8px;border-radius:999px;font-size:12px;background:#e5e7eb}.recipient-pref.on{background:#d1fae5;color:#065f46}.recipient-pref.off{background:#fee2e2;color:#991b1b}
   </style>
 </head>
 <body data-vapid-public-key="{{ vapid_public_key }}" data-user-id="{{ request.user.id }}">
@@ -58,6 +60,7 @@
     <h2>2. Bildirim aboneliği</h2>
     <button id="enableBtn">Bildirimleri etkinleştir</button>
     <button id="disableBtn" class="danger">Bildirimleri kapat</button>
+    <p class="small">Bu tarayıcıdaki push aboneliği giriş yapan kullanıcı hesabına bağlanır. Aynı tarayıcı profilinde başka bir kullanıcı giriş yaparsa mevcut abonelik yeni giriş yapan kullanıcıyla eşitlenir.</p>
   </div>
 
   <div class="card">
@@ -101,6 +104,12 @@
           {% endfor %}
         </select>
       </div>
+    </div>
+
+    <div id="targetUserState" class="recipient-state">
+      <strong>Alıcı durumu</strong>
+      <div id="targetUserMeta" class="small">Kullanıcı bilgileri yükleniyor…</div>
+      <div id="targetUserPreferences"></div>
     </div>
 
     <label for="targetTitle">Başlık</label>

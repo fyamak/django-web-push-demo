@@ -332,3 +332,12 @@ docker compose -f docker-compose.test.yml exec web \
 ```
 
 Teknik/özel durumda tercihi yok saymak gerekirse `--ignore-preferences` kullanılabilir. Normal ürün bildirimlerinde bu seçenek kullanılmamalıdır.
+
+## Kullanıcı kaydı ve kullanıcı bazlı bildirimler
+
+- `/signup/` üzerinden yeni kullanıcılar kendi hesaplarını oluşturabilir.
+- Yeni kayıtlar normal kullanıcıdır (`is_staff=False`) ve aktif bildirim kategorileri başlangıçta kapalıdır; kullanıcı ana ekrandan kendi tercihlerini açar.
+- Her tarayıcı push aboneliği giriş yapan kullanıcıyla eşleştirilir. Bildirim gönderimi yalnızca seçilen kullanıcının aboneliklerine yapılır.
+- Staff kullanıcılar ana ekrandaki **Kullanıcıya bildirim gönder** bölümünden hedef kullanıcıyı seçebilir ve seçilen kullanıcının aktif push aboneliği ile kategori tercihlerini görebilir.
+- Kategorili gönderimler alıcının tercihini zorunlu olarak kontrol eder. Kullanıcı kategoriyi kapattıysa push ve bildirim geçmişi kaydı oluşturulmaz.
+- Test sunucusunda web container portu yalnızca `127.0.0.1:5001` üzerinde yayınlanır; internete doğrudan açılmaz ve host Nginx üzerinden erişilir.

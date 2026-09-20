@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#111827">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/static/notifications/icons/icon-192.png">
   <title>Giriş - Push Demo</title>
@@ -13,7 +15,7 @@
     .card{background:white;padding:28px;border-radius:18px;box-shadow:0 10px 35px rgba(0,0,0,.08)}
     label{display:block;margin:14px 0 6px;font-weight:600} input{box-sizing:border-box;width:100%;padding:12px;border:1px solid #d1d5db;border-radius:10px;font-size:16px}
     button{width:100%;margin-top:18px;padding:12px;border:0;border-radius:10px;background:#111827;color:white;font-size:16px;font-weight:700;cursor:pointer}
-    .errorlist{color:#b91c1c;padding-left:20px}
+    .errorlist{color:#b91c1c;padding-left:20px}.footer{text-align:center;margin-top:18px;color:#4b5563}.footer a{color:#111827;font-weight:700}
   </style>
 </head>
 <body>
@@ -29,6 +31,7 @@
     {{ form.password }}
     <button type="submit">Giriş yap</button>
   </form>
+  <div class="footer">Hesabın yok mu? <a href="{% url 'notifications:signup' %}">Kayıt ol</a></div>
 </div></div>
 </body>
 </html>

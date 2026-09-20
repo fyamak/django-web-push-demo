@@ -10,6 +10,10 @@
   const savePreferencesBtn = document.getElementById("savePreferencesBtn");
   const sendToUserBtn = document.getElementById("sendToUserBtn");
   const sendToUserResult = document.getElementById("sendToUserResult");
+  const targetUserSelect = document.getElementById("targetUser");
+  const targetCategorySelect = document.getElementById("targetCategory");
+  const targetUserMeta = document.getElementById("targetUserMeta");
+  const targetUserPreferences = document.getElementById("targetUserPreferences");
   const publicKey = document.body.dataset.vapidPublicKey;
   let deferredInstallPrompt = null;
 
@@ -240,6 +244,53 @@
     }
   }
 
+  async function refreshTargetUserState() {
+    if (!targetUserSelect || !targetCategorySelect || !targetUserMeta || !targetUserPreferences) return;
+
+    const userId = Number(targetUserSelect.value);
+    if (!userId) return;
+
+    targetUserMeta.textContent = "Kullanıcı bilgileri yükleniyor…";
+    targetUserPreferences.replaceChildren();
+
+    try {
+      const response = await fetch(`/api/users/${userId}/notification-state/`, {
+        credentials: "same-origin",
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
+
+      const emailText = result.user?.email ? ` · ${result.user.email}` : "";
+      targetUserMeta.textContent = `${result.user.username}${emailText} · aktif push aboneliği: ${result.subscription_count}`;
+
+      const preferenceMap = new Map((result.preferences || []).map((item) => [Number(item.id), item]));
+      for (const option of targetCategorySelect.options) {
+        const categoryId = Number(option.value);
+        const pref = preferenceMap.get(categoryId);
+        if (!option.dataset.baseLabel) option.dataset.baseLabel = option.textContent;
+        option.dataset.preferenceEnabled = pref?.enabled ? "true" : "false";
+        option.textContent = `${option.dataset.baseLabel}${pref?.enabled ? " · açık" : " · kapalı"}`;
+      }
+
+      for (const pref of result.preferences || []) {
+        const badge = document.createElement("span");
+        badge.className = `recipient-pref ${pref.enabled ? "on" : "off"}`;
+        badge.textContent = `${pref.name}: ${pref.enabled ? "açık" : "kapalı"}`;
+        targetUserPreferences.appendChild(badge);
+      }
+
+      if (!(result.preferences || []).length) {
+        const empty = document.createElement("span");
+        empty.className = "small";
+        empty.textContent = "Aktif bildirim kategorisi bulunmuyor.";
+        targetUserPreferences.appendChild(empty);
+      }
+    } catch (error) {
+      targetUserMeta.textContent = `Alıcı durumu alınamadı: ${error.message}`;
+      log(`Alıcı durumu alınamadı: ${error.message}`);
+    }
+  }
+
   async function sendToUser() {
     try {
       sendToUserBtn.disabled = true;
@@ -247,8 +298,8 @@
       sendToUserResult.textContent = "";
 
       const result = await postJson("/api/push/send-to-user/", {
-        user_id: Number(document.getElementById("targetUser").value),
-        category_id: Number(document.getElementById("targetCategory").value),
+        user_id: Number(targetUserSelect.value),
+        category_id: Number(targetCategorySelect.value),
         title: document.getElementById("targetTitle").value,
         body: document.getElementById("targetBody").value,
         url: document.getElementById("targetUrl").value,
@@ -259,7 +310,7 @@
       sendToUserResult.className = `result-box visible${result.skipped ? " warn" : " ok"}`;
       log("Kullanıcı bazlı bildirim sonucu", result);
 
-      if (Number(document.getElementById("targetUser").value) === Number(document.body.dataset.userId)) {
+      if (Number(targetUserSelect.value) === Number(document.body.dataset.userId)) {
         await refreshNotificationHistory();
       }
     } catch (error) {
@@ -280,6 +331,7 @@
       document.getElementById("swStatus").textContent = registration ? "Kayıtlı" : "Kayıt başarısız";
       await syncExistingSubscription();
       await refreshNotificationHistory();
+      await refreshTargetUserState();
       log("Uygulama hazır.");
     } catch (error) {
       document.getElementById("swStatus").textContent = "Hata";
@@ -308,5 +360,6 @@
   markAllReadBtn.addEventListener("click", markAllRead);
   if (savePreferencesBtn) savePreferencesBtn.addEventListener("click", savePreferences);
   if (sendToUserBtn) sendToUserBtn.addEventListener("click", sendToUser);
+  if (targetUserSelect) targetUserSelect.addEventListener("change", refreshTargetUserState);
   init();
 })();

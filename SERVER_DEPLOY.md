@@ -98,3 +98,17 @@ docker-compose -f docker-compose.test.yml exec web python manage.py showmigratio
 `0003_notification_categories_and_preferences` satırında `[X]` görülmelidir.
 
 Test ortamında `demo` kullanıcısı `DEMO_IS_STAFF = True` ile gönderici panelini görebilir. Hedef kullanıcıların ayrıca kendi hesaplarıyla giriş yapıp **Bildirimleri etkinleştir** demesi ve en az bir bildirim kategorisini seçip tercihlerini kaydetmesi gerekir.
+
+## Yeni kullanıcı kaydı ve çoklu kullanıcı testi
+
+Yeni kullanıcılar giriş ekranındaki **Kayıt ol** bağlantısından veya doğrudan `/signup/` adresinden hesap oluşturabilir. Bu değişiklik yeni bir veritabanı migration'ı gerektirmez; mevcut Django `User` modeli kullanılır.
+
+Yeni kayıt olan kullanıcılar `staff` değildir. İlk girişten sonra:
+
+1. **Bildirimleri etkinleştir** ile o tarayıcı/cihazın push aboneliğini kendi hesabına bağlar.
+2. **Bildirim tercihlerim** bölümünden almak istediği kategorileri açar ve kaydeder.
+3. Staff kullanıcı gönderim panelinde bu kullanıcıyı hedef olarak seçebilir; panel alıcının aktif push aboneliği sayısını ve kategori tercihlerini gösterir.
+
+Aynı tarayıcı profilindeki tek PushSubscription son giriş yapan kullanıcıyla eşleştirilir. Birden fazla kullanıcıyı aynı anda test etmek için farklı tarayıcı profilleri, gizli pencere profilleri veya farklı cihazlar kullanmak daha nettir.
+
+Bu sürümde `docker-compose.test.yml` ayrıca `DJANGO_SETTINGS_MODULE=pushdemo.settings.test` değerini doğrudan container ortamına verir. Böylece `docker-compose exec web python manage.py ...` komutları da test ayarlarını kullanır. Port yayını `127.0.0.1:5001:8000` olarak kalmalıdır.

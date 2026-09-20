@@ -5,6 +5,7 @@ app_name = "notifications"
 
 urlpatterns = [
     path("", views.home, name="home"),
+    path("signup/", views.signup, name="signup"),
     path("manifest.json", views.manifest, name="manifest"),
     path("service-worker.js", views.service_worker, name="service_worker"),
     path("notifications/<int:notification_id>/open/", views.open_notification, name="open_notification"),
@@ -15,5 +16,6 @@ urlpatterns = [
     path("api/push/subscribe/", views.subscribe, name="subscribe"),
     path("api/push/unsubscribe/", views.unsubscribe, name="unsubscribe"),
     path("api/push/send-test/", views.send_test, name="send_test"),
+    path("api/users/<int:user_id>/notification-state/", views.target_user_notification_state, name="target_user_notification_state"),
     path("api/push/send-to-user/", views.send_to_user, name="send_to_user"),
 ]
