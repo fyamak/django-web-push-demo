@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>Bildirim Yönetimi</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #f3f4f6;
+            color: #111827;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 25px rgba(0,0,0,.06);
+        }
+
+        h1, h2 {
+            margin-top: 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+            vertical-align: top;
+        }
+
+        th {
+            background: #f9fafb;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 5px 9px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .status.on {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status.off {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .category {
+            display: inline-block;
+            background: #e5e7eb;
+            padding: 5px 8px;
+            margin: 2px;
+            border-radius: 999px;
+            font-size: 12px;
+        }
+
+        .muted {
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .actions {
+            margin-bottom: 14px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            border: 0;
+            border-radius: 9px;
+            padding: 10px 15px;
+            background: #111827;
+            color: #fff;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        button.secondary {
+            background: #e5e7eb;
+            color: #111827;
+        }
+
+        button:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+        }
+
+        input,
+        textarea,
+        select {
+            width: 100%;
+            border: 1px solid #d1d5db;
+            border-radius: 9px;
+            padding: 10px;
+            margin-top: 5px;
+            margin-bottom: 14px;
+            font: inherit;
+        }
+
+        input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+        }
+
+        textarea {
+            min-height: 100px;
+        }
+
+        .all-users {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 18px;
+            font-weight: 700;
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 10px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="topbar">
+        <div>
+            <h1>Bildirim Yönetimi</h1>
+            <div class="muted">
+                Yönetici: {{ request.user.username }}
+            </div>
+        </div>
+
+        <form action="{% url 'logout' %}" method="post">
+            {% csrf_token %}
+            <button type="submit" class="secondary">
+                Çıkış
+            </button>
+        </form>
+    </div>
+
+
+    <div class="card">
+
+        <h2>Kullanıcılar</h2>
+
+        <div class="muted">
+            Admin kullanıcılar bu listede gösterilmez.
+        </div>
+
+        <br>
+
+        <div class="actions">
+            <button
+                type="button"
+                class="secondary"
+                id="selectAllBtn"
+            >
+                Tümünü seç
+            </button>
+
+            <button
+                type="button"
+                class="secondary"
+                id="clearSelectionBtn"
+            >
+                Seçimi temizle
+            </button>
+        </div>
+
+        <div style="overflow-x:auto;">
+
+            <table>
+
+                <thead>
+                <tr>
+                    <th></th>
+                    <th>Kullanıcı</th>
+                    <th>Bildirim</th>
+                    <th>Subscription</th>
+                    <th>İzin verilen kategoriler</th>
+                </tr>
+                </thead>
+
+                <tbody>
+
+                {% for user in users %}
+
+                    <tr>
+
+                        <td>
+                            <input
+                                type="checkbox"
+                                class="user-checkbox"
+                                value="{{ user.id }}"
+                            >
+                        </td>
+
+                        <td>
+                            <strong>
+                                {{ user.username }}
+                            </strong>
+
+                            {% if user.email %}
+                                <div class="muted">
+                                    {{ user.email }}
+                                </div>
+                            {% endif %}
+                        </td>
+
+                        <td>
+
+                            {% if user.subscription_count > 0 %}
+
+                                <span class="status on">
+                                    Aktif
+                                </span>
+
+                            {% else %}
+
+                                <span class="status off">
+                                    Kapalı
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+                        <td>
+                            {{ user.subscription_count }}
+                        </td>
+
+                        <td>
+
+                            {% for preference in user.enabled_notification_preferences %}
+
+                                <span class="category">
+                                    {{ preference.category.name }}
+                                </span>
+
+                            {% empty %}
+
+                                <span class="muted">
+                                    İzin verilen kategori yok
+                                </span>
+
+                            {% endfor %}
+
+                        </td>
+
+                    </tr>
+
+                {% empty %}
+
+                    <tr>
+                        <td colspan="5">
+                            Kullanıcı bulunamadı.
+                        </td>
+                    </tr>
+
+                {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+
+    <div class="card">
+
+        <h2>Bildirim Gönder</h2>
+
+        <form
+            id="csrfForm"
+            style="display:none;"
+        >
+            {% csrf_token %}
+        </form>
+
+
+        <label class="all-users">
+
+            <input
+                type="checkbox"
+                id="sendToAll"
+            >
+
+            Tüm kullanıcılara gönder
+
+        </label>
+
+
+        <label for="notificationTitle">
+            Başlık
+        </label>
+
+        <input
+            id="notificationTitle"
+            maxlength="120"
+            placeholder="Örn: Sulama tamamlandı"
+        >
+
+
+        <label for="notificationBody">
+            Mesaj
+        </label>
+
+        <textarea
+            id="notificationBody"
+            maxlength="500"
+            placeholder="Bildirim mesajı..."
+        ></textarea>
+
+
+        <label for="notificationUrl">
+            Açılacak URL
+        </label>
+
+        <input
+            id="notificationUrl"
+            value="/"
+            placeholder="/"
+        >
+
+
+        <button
+            type="button"
+            id="sendNotificationBtn"
+        >
+            Bildirim Gönder
+        </button>
+
+
+        <div
+            id="sendResult"
+            class="result"
+            hidden
+        ></div>
+
+    </div>
+
+</div>
+
+
+<script>
+
+const userCheckboxes =
+    [...document.querySelectorAll(".user-checkbox")];
+
+const sendToAll =
+    document.getElementById("sendToAll");
+
+const sendButton =
+    document.getElementById("sendNotificationBtn");
+
+const resultBox =
+    document.getElementById("sendResult");
+
+
+document
+    .getElementById("selectAllBtn")
+    .addEventListener("click", () => {
+
+        sendToAll.checked = false;
+
+        userCheckboxes.forEach(
+            checkbox => checkbox.checked = true
+        );
+
+    });
+
+
+document
+    .getElementById("clearSelectionBtn")
+    .addEventListener("click", () => {
+
+        sendToAll.checked = false;
+
+        userCheckboxes.forEach(
+            checkbox => checkbox.checked = false
+        );
+
+    });
+
+
+sendToAll.addEventListener("change", () => {
+
+    userCheckboxes.forEach(checkbox => {
+
+        checkbox.checked = false;
+        checkbox.disabled = sendToAll.checked;
+
+    });
+
+});
+
+
+sendButton.addEventListener("click", async () => {
+
+    const selectedUserIds =
+        userCheckboxes
+            .filter(checkbox => checkbox.checked)
+            .map(checkbox => Number(checkbox.value));
+
+
+    if (
+        !sendToAll.checked &&
+        selectedUserIds.length === 0
+    ) {
+        alert("En az bir kullanıcı seçmelisiniz.");
+        return;
+    }
+
+    const title =
+        document
+            .getElementById("notificationTitle")
+            .value
+            .trim();
+
+    const body =
+        document
+            .getElementById("notificationBody")
+            .value
+            .trim();
+
+
+    if (!title || !body) {
+        alert("Başlık ve mesaj zorunludur.");
+        return;
+    }
+
+
+    sendButton.disabled = true;
+
+    resultBox.hidden = false;
+    resultBox.textContent = "Gönderiliyor...";
+
+
+    try {
+
+        const csrfToken =
+            document.querySelector(
+                "[name=csrfmiddlewaretoken]"
+            ).value;
+
+
+        const response = await fetch(
+            "{% url 'notifications:admin_send_notification' %}",
+            {
+                method: "POST",
+
+                credentials: "same-origin",
+
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": csrfToken,
+                },
+
+                body: JSON.stringify({
+
+                    send_to_all:
+                        sendToAll.checked,
+
+                    user_ids:
+                        selectedUserIds,
+
+                    title:
+                        title,
+
+                    body:
+                        body,
+
+                    url:
+                        document
+                            .getElementById("notificationUrl")
+                            .value
+                            .trim() || "/",
+                }),
+            }
+        );
+
+
+        const result =
+            await response.json();
+
+
+        if (!response.ok) {
+            throw new Error(
+                result.error || "Gönderim başarısız."
+            );
+        }
+
+
+        const summary = result.summary;
+
+
+        resultBox.textContent =
+`Seçilen kullanıcı: ${summary.selected_users}
+Bildirim gönderilen kullanıcı: ${summary.sent_users}
+Başarılı cihaz gönderimi: ${summary.sent_subscriptions}
+Başarısız cihaz gönderimi: ${summary.failed_subscriptions}
+Bildirimleri kapalı olduğu için atlanan: ${summary.skipped_notifications_disabled}`;
+
+
+    } catch (error) {
+
+        resultBox.textContent =
+            `Hata: ${error.message}`;
+
+    } finally {
+
+        sendButton.disabled = false;
+
+    }
+
+});
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,919 @@
+{% load static %}
+
+<!doctype html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>Bildirim Ayarları</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: #f3f4f6;
+            color: #111827;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+
+        .container {
+            width: min(900px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 32px 0;
+        }
+
+        .header {
+            margin-bottom: 24px;
+        }
+
+        .header h1 {
+            margin: 0 0 6px;
+        }
+
+        .muted {
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 22px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, .06);
+        }
+
+        .card h2 {
+            margin: 0 0 8px;
+        }
+
+        button {
+            border: 0;
+            border-radius: 10px;
+            background: #111827;
+            color: white;
+            padding: 11px 16px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        button.secondary {
+            background: #e5e7eb;
+            color: #111827;
+        }
+
+        button.danger {
+            background: #b91c1c;
+        }
+
+        button:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+        }
+
+        .notification-status {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            margin-top: 18px;
+            padding: 16px;
+            border-radius: 12px;
+            background: #f9fafb;
+        }
+
+        .status-badge {
+            display: inline-block;
+            border-radius: 999px;
+            padding: 5px 10px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .status-on {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-off {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .preferences {
+            display: grid;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .preference {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 15px;
+        }
+
+        .preference input {
+            width: 20px;
+            height: 20px;
+            margin-top: 2px;
+        }
+
+        .preference label {
+            flex: 1;
+            cursor: pointer;
+        }
+
+        .preference strong {
+            display: block;
+            margin-bottom: 3px;
+        }
+
+        .save-area {
+            margin-top: 18px;
+        }
+
+        .devices {
+            display: grid;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .device {
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 15px;
+        }
+
+        .device-top {
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+            align-items: flex-start;
+        }
+
+        .device-title {
+            font-weight: 700;
+        }
+
+        .device-agent {
+            margin-top: 8px;
+            word-break: break-word;
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        .empty {
+            padding: 18px;
+            background: #f9fafb;
+            border-radius: 12px;
+            color: #6b7280;
+            text-align: center;
+        }
+
+        .result {
+            display: none;
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 10px;
+        }
+
+        .result.visible {
+            display: block;
+        }
+
+        .result.success {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .result.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+
+<body
+    data-vapid-public-key="{{ vapid_public_key }}"
+>
+
+<div class="container">
+
+    <div class="header">
+        <h1>Bildirim Ayarları</h1>
+
+        <div class="muted">
+            {{ request.user.username }} hesabının bildirim tercihlerini yönetin.
+        </div>
+    </div>
+
+
+    <!-- GENEL BİLDİRİM DURUMU -->
+
+    <div class="card">
+
+        <h2>Bildirim Durumu</h2>
+
+        <p class="muted">
+            Bu cihaz için tarayıcı bildirimlerini açabilir veya kapatabilirsiniz.
+        </p>
+
+        <div class="notification-status">
+
+            <div>
+                <strong>Bu cihaz</strong>
+
+                <div
+                    id="currentDeviceStatus"
+                    class="muted"
+                >
+                    Kontrol ediliyor...
+                </div>
+            </div>
+
+            <div id="statusBadge">
+                <span class="status-badge status-off">
+                    Kontrol ediliyor
+                </span>
+            </div>
+
+        </div>
+
+        <div class="actions">
+
+            <button
+                type="button"
+                id="enableNotificationsBtn"
+            >
+                Bildirimleri Aç
+            </button>
+
+            <button
+                type="button"
+                id="disableNotificationsBtn"
+                class="danger"
+            >
+                Bildirimleri Kapat
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <!-- KATEGORİ TERCİHLERİ -->
+
+    <div class="card">
+
+        <h2>Bildirim Tercihleri</h2>
+
+        <p class="muted">
+            Otomatik sistem bildirimlerinde hangi kategorilerden
+            bildirim almak istediğinizi seçebilirsiniz.
+        </p>
+
+        <div class="preferences">
+
+            {% for item in preference_items %}
+
+                <div class="preference">
+
+                    <input
+                        type="checkbox"
+                        class="preference-checkbox"
+                        id="preference-{{ item.id }}"
+                        value="{{ item.id }}"
+                        {% if item.enabled %}checked{% endif %}
+                    >
+
+                    <label for="preference-{{ item.id }}">
+
+                        <strong>
+                            {{ item.name }}
+                        </strong>
+
+                        <div class="muted">
+                            {{ item.description|default:"Bu kategorideki bildirimler." }}
+                        </div>
+
+                    </label>
+
+                </div>
+
+            {% empty %}
+
+                <div class="empty">
+                    Aktif bildirim kategorisi bulunmuyor.
+                </div>
+
+            {% endfor %}
+
+        </div>
+
+        {% if preference_items %}
+
+            <div class="save-area">
+
+                <button
+                    type="button"
+                    id="savePreferencesBtn"
+                >
+                    Tercihleri Kaydet
+                </button>
+
+            </div>
+
+        {% endif %}
+
+        <div
+            id="preferencesResult"
+            class="result"
+        ></div>
+
+    </div>
+
+
+    <!-- CİHAZLAR -->
+
+    <div class="card">
+
+        <h2>Bildirimlerin Açık Olduğu Cihazlar</h2>
+
+        <p class="muted">
+            Bu hesaba bağlı {{ subscription_count }} aktif push aboneliği bulunuyor.
+        </p>
+
+        <div class="devices">
+
+            {% for subscription in subscriptions %}
+
+                <div
+                    class="device"
+                    data-subscription-id="{{ subscription.id }}"
+                >
+
+                    <div class="device-top">
+
+                        <div>
+
+                            <div class="device-title">
+                                Bildirim cihazı #{{ forloop.counter }}
+                            </div>
+
+                            <div class="muted">
+                                Son güncelleme:
+                                {{ subscription.updated_at|date:"d.m.Y H:i" }}
+                            </div>
+
+                        </div>
+
+                        <span class="status-badge status-on">
+                            Aktif
+                        </span>
+
+                    </div>
+
+                    {% if subscription.user_agent %}
+
+                        <div class="device-agent">
+                            {{ subscription.user_agent }}
+                        </div>
+
+                    {% endif %}
+
+                </div>
+
+            {% empty %}
+
+                <div class="empty">
+                    Bu hesaba bağlı aktif bildirim cihazı bulunmuyor.
+                </div>
+
+            {% endfor %}
+
+        </div>
+
+    </div>
+
+
+    <!-- TEST -->
+
+    <div class="card">
+
+        <h2>Bildirim Testi</h2>
+
+        <p class="muted">
+            Bildirim sisteminizin çalışıp çalışmadığını kontrol etmek için
+            kendinize bir test bildirimi gönderebilirsiniz.
+        </p>
+
+        <button
+            type="button"
+            id="sendTestBtn"
+        >
+            Test Bildirimi Gönder
+        </button>
+
+        <div
+            id="testResult"
+            class="result"
+        ></div>
+
+    </div>
+
+
+    <form style="display:none;">
+        {% csrf_token %}
+    </form>
+
+</div>
+
+
+<script>
+
+const publicKey =
+    document.body.dataset.vapidPublicKey;
+
+const enableButton =
+    document.getElementById("enableNotificationsBtn");
+
+const disableButton =
+    document.getElementById("disableNotificationsBtn");
+
+const currentDeviceStatus =
+    document.getElementById("currentDeviceStatus");
+
+const statusBadge =
+    document.getElementById("statusBadge");
+
+const savePreferencesButton =
+    document.getElementById("savePreferencesBtn");
+
+const preferencesResult =
+    document.getElementById("preferencesResult");
+
+const sendTestButton =
+    document.getElementById("sendTestBtn");
+
+const testResult =
+    document.getElementById("testResult");
+
+
+function getCookie(name) {
+
+    const cookies =
+        document.cookie
+            ? document.cookie.split(";")
+            : [];
+
+    for (const cookie of cookies) {
+
+        const item = cookie.trim();
+
+        if (item.startsWith(`${name}=`)) {
+            return decodeURIComponent(
+                item.substring(name.length + 1)
+            );
+        }
+
+    }
+
+    return null;
+}
+
+
+async function postJson(url, data = {}) {
+
+    const response = await fetch(
+        url,
+        {
+            method: "POST",
+
+            credentials: "same-origin",
+
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCookie("csrftoken"),
+            },
+
+            body: JSON.stringify(data),
+        }
+    );
+
+    const result =
+        await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+        throw new Error(
+            result.error || `HTTP ${response.status}`
+        );
+    }
+
+    return result;
+}
+
+
+function urlBase64ToUint8Array(base64String) {
+
+    const padding =
+        "=".repeat(
+            (4 - base64String.length % 4) % 4
+        );
+
+    const base64 =
+        (base64String + padding)
+            .replace(/-/g, "+")
+            .replace(/_/g, "/");
+
+    const rawData = atob(base64);
+
+    return Uint8Array.from(
+        [...rawData].map(
+            character => character.charCodeAt(0)
+        )
+    );
+}
+
+
+async function getRegistration() {
+
+    if (!("serviceWorker" in navigator)) {
+        throw new Error(
+            "Bu tarayıcı Service Worker desteklemiyor."
+        );
+    }
+
+    return navigator.serviceWorker.register(
+        "/service-worker.js",
+        {
+            scope: "/",
+        }
+    );
+}
+
+
+function applicationServerKeyMatches(subscription) {
+
+    const existingKey =
+        subscription?.options?.applicationServerKey;
+
+    if (!existingKey || !publicKey) {
+        return false;
+    }
+
+    const expected =
+        urlBase64ToUint8Array(publicKey);
+
+    const current =
+        new Uint8Array(existingKey);
+
+    if (current.length !== expected.length) {
+        return false;
+    }
+
+    return current.every(
+        (value, index) =>
+            value === expected[index]
+    );
+}
+
+
+async function updateCurrentDeviceStatus() {
+
+    try {
+
+        if (!("Notification" in window)) {
+
+            currentDeviceStatus.textContent =
+                "Bu tarayıcı bildirimleri desteklemiyor.";
+
+            return;
+        }
+
+
+        const registration =
+            await getRegistration();
+
+        const subscription =
+            await registration
+                .pushManager
+                .getSubscription();
+
+
+        if (
+            Notification.permission === "granted" &&
+            subscription &&
+            applicationServerKeyMatches(subscription)
+        ) {
+
+            currentDeviceStatus.textContent =
+                "Bu cihazda bildirimler açık.";
+
+            statusBadge.innerHTML =
+                '<span class="status-badge status-on">Aktif</span>';
+
+            return;
+        }
+
+
+        currentDeviceStatus.textContent =
+            `Bildirim izni: ${Notification.permission}`;
+
+        statusBadge.innerHTML =
+            '<span class="status-badge status-off">Kapalı</span>';
+
+
+    } catch (error) {
+
+        currentDeviceStatus.textContent =
+            error.message;
+
+    }
+}
+
+
+async function enableNotifications() {
+
+    try {
+
+        if (!publicKey) {
+            throw new Error(
+                "VAPID public key bulunamadı."
+            );
+        }
+
+        if (!window.isSecureContext) {
+            throw new Error(
+                "Bildirimler için HTTPS gereklidir."
+            );
+        }
+
+
+        const permission =
+            await Notification.requestPermission();
+
+
+        if (permission !== "granted") {
+            throw new Error(
+                "Bildirim izni verilmedi."
+            );
+        }
+
+
+        const registration =
+            await getRegistration();
+
+        let subscription =
+            await registration
+                .pushManager
+                .getSubscription();
+
+
+        if (
+            subscription &&
+            !applicationServerKeyMatches(subscription)
+        ) {
+
+            try {
+
+                await postJson(
+                    "{% url 'notifications:unsubscribe' %}",
+                    {
+                        endpoint: subscription.endpoint,
+                    }
+                );
+
+            } catch (_) {
+                // Eski subscription DB'de olmayabilir.
+            }
+
+
+            await subscription.unsubscribe();
+
+            subscription = null;
+        }
+
+
+        if (!subscription) {
+
+            subscription =
+                await registration
+                    .pushManager
+                    .subscribe(
+                        {
+                            userVisibleOnly: true,
+
+                            applicationServerKey:
+                                urlBase64ToUint8Array(
+                                    publicKey
+                                ),
+                        }
+                    );
+
+        }
+
+
+        await postJson(
+            "{% url 'notifications:subscribe' %}",
+            subscription.toJSON()
+        );
+
+
+        await updateCurrentDeviceStatus();
+
+        window.location.reload();
+
+
+    } catch (error) {
+
+        alert(error.message);
+
+    }
+
+}
+
+
+async function disableNotifications() {
+
+    try {
+
+        const registration =
+            await getRegistration();
+
+        const subscription =
+            await registration
+                .pushManager
+                .getSubscription();
+
+
+        if (!subscription) {
+
+            alert(
+                "Bu cihazda aktif bildirim aboneliği bulunmuyor."
+            );
+
+            return;
+        }
+
+
+        await postJson(
+            "{% url 'notifications:unsubscribe' %}",
+            {
+                endpoint: subscription.endpoint,
+            }
+        );
+
+
+        await subscription.unsubscribe();
+
+        await updateCurrentDeviceStatus();
+
+        window.location.reload();
+
+
+    } catch (error) {
+
+        alert(error.message);
+
+    }
+
+}
+
+
+async function savePreferences() {
+
+    try {
+
+        savePreferencesButton.disabled = true;
+
+
+        const enabledCategoryIds =
+            [
+                ...document.querySelectorAll(
+                    ".preference-checkbox:checked"
+                )
+            ].map(
+                element => Number(element.value)
+            );
+
+
+        await postJson(
+            "{% url 'notifications:save_notification_preferences' %}",
+            {
+                enabled_category_ids:
+                    enabledCategoryIds,
+            }
+        );
+
+
+        preferencesResult.className =
+            "result visible success";
+
+        preferencesResult.textContent =
+            "Bildirim tercihleri kaydedildi.";
+
+
+    } catch (error) {
+
+        preferencesResult.className =
+            "result visible error";
+
+        preferencesResult.textContent =
+            error.message;
+
+    } finally {
+
+        savePreferencesButton.disabled = false;
+
+    }
+
+}
+
+
+async function sendTestNotification() {
+
+    try {
+
+        sendTestButton.disabled = true;
+
+        testResult.className =
+            "result visible";
+
+        testResult.textContent =
+            "Test bildirimi gönderiliyor...";
+
+
+        const result =
+            await postJson(
+                "{% url 'notifications:send_test' %}"
+            );
+
+
+        testResult.className =
+            "result visible success";
+
+        testResult.textContent =
+            result.message ||
+            "Test bildirimi gönderildi.";
+
+
+    } catch (error) {
+
+        testResult.className =
+            "result visible error";
+
+        testResult.textContent =
+            error.message;
+
+    } finally {
+
+        sendTestButton.disabled = false;
+
+    }
+
+}
+
+
+enableButton.addEventListener(
+    "click",
+    enableNotifications
+);
+
+disableButton.addEventListener(
+    "click",
+    disableNotifications
+);
+
+if (savePreferencesButton) {
+    savePreferencesButton.addEventListener(
+        "click",
+        savePreferences
+    );
+}
+
+sendTestButton.addEventListener(
+    "click",
+    sendTestNotification
+);
+
+
+updateCurrentDeviceStatus();
+
+</script>
+
+</body>
+</html>

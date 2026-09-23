@@ -5,6 +5,9 @@ app_name = "notifications"
 
 urlpatterns = [
     path("", views.home, name="home"),
+    path("admin-home/", views.admin_home, name="admin_home"),
+    path("admin-send-notification/",views.admin_send_notification, name="admin_send_notification"),
+    path("notification-settings/", views.notification_settings_page, name="notification_settings_page"),
     path("signup/", views.signup, name="signup"),
     path("manifest.json", views.manifest, name="manifest"),
     path("service-worker.js", views.service_worker, name="service_worker"),

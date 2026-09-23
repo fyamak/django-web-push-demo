@@ -10,6 +10,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
+from django.core.exceptions import PermissionDenied
+from django.db.models import Count, Prefetch
 
 from .forms import SignUpForm
 from .models import (
@@ -75,6 +77,9 @@ def signup(request):
 
 @login_required
 def home(request):
+    if request.user.is_staff:
+        return redirect("notifications:admin_home")
+    
     notifications = Notification.objects.filter(user=request.user).select_related("category")[:50]
     context = {
         "vapid_public_key": _read_public_key(),
@@ -91,6 +96,247 @@ def home(request):
 
     return render(request, "notifications/home.html", context)
 
+@login_required
+def admin_home(request):
+    if not request.user.is_staff:
+        raise PermissionDenied
+
+    User = get_user_model()
+
+    enabled_preferences = Prefetch(
+        "notification_preferences",
+        queryset=(
+            UserNotificationPreference.objects
+            .filter(
+                enabled=True,
+                category__is_active=True,
+            )
+            .select_related("category")
+            .order_by("category__sort_order", "category__name")
+        ),
+        to_attr="enabled_notification_preferences",
+    )
+
+    users = (
+        User.objects
+        .filter(
+            is_active=True,
+            is_staff=False,   # adminları kullanıcı listesine alma
+        )
+        .annotate(
+            subscription_count=Count(
+                "push_subscriptions",
+                distinct=True,
+            )
+        )
+        .prefetch_related(enabled_preferences)
+        .order_by("username")
+    )
+
+    categories = (
+        NotificationCategory.objects
+        .filter(is_active=True)
+        .order_by("sort_order", "name")
+    )
+
+    return render(
+        request,
+        "notifications/admin_home.html",
+        {
+            "users": users,
+            "categories": categories,
+        },
+    )
+    
+    
+@login_required
+@require_POST
+def admin_send_notification(request):
+    if not request.user.is_staff:
+        raise PermissionDenied
+
+    data = _json_body(request)
+
+    if not data:
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "Geçersiz istek.",
+            },
+            status=400,
+        )
+
+    send_to_all = data.get("send_to_all") is True
+    user_ids = data.get("user_ids", [])
+
+    if not send_to_all:
+        if not isinstance(user_ids, list) or not user_ids:
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": "En az bir kullanıcı seçmelisiniz.",
+                },
+                status=400,
+            )
+
+        try:
+            user_ids = {int(user_id) for user_id in user_ids}
+        except (TypeError, ValueError):
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": "Geçersiz kullanıcı seçimi.",
+                },
+                status=400,
+            )
+
+    title = str(data.get("title") or "").strip()[:120]
+    body = str(data.get("body") or "").strip()[:500]
+    url = str(data.get("url") or "/").strip()[:500]
+
+    if not title:
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "Bildirim başlığı zorunludur.",
+            },
+            status=400,
+        )
+
+    if not body:
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "Bildirim mesajı zorunludur.",
+            },
+            status=400,
+        )
+
+    if not url.startswith("/") or url.startswith("//"):
+        url = "/"
+
+    User = get_user_model()
+
+    users = (
+        User.objects
+        .filter(
+            is_active=True,
+            is_staff=False,
+        )
+        .annotate(
+            subscription_count=Count(
+                "push_subscriptions",
+                distinct=True,
+            )
+        )
+        .order_by("username")
+    )
+
+    if not send_to_all:
+        users = users.filter(pk__in=user_ids)
+
+        found_ids = set(
+            users.values_list("id", flat=True)
+        )
+
+        invalid_ids = user_ids - found_ids
+
+        if invalid_ids:
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": "Seçilen kullanıcılardan bazıları geçersiz.",
+                },
+                status=400,
+            )
+
+    summary = {
+        "selected_users": 0,
+        "sent_users": 0,
+        "sent_subscriptions": 0,
+        "failed_subscriptions": 0,
+        "skipped_notifications_disabled": 0,
+    }
+
+    results = []
+
+    for user in users:
+        summary["selected_users"] += 1
+
+        # Kullanıcının aktif push subscription'ı yoksa
+        # bildirimleri kapalı kabul ediyoruz.
+        if user.subscription_count == 0:
+            summary["skipped_notifications_disabled"] += 1
+
+            results.append(
+                {
+                    "user_id": user.pk,
+                    "username": user.username,
+                    "status": "skipped",
+                    "reason": "notifications_disabled",
+                }
+            )
+
+            continue
+
+        # Admin manuel gönderiminde kategori kontrolü YOK.
+        result = send_push_to_user(
+            user,
+            title=title,
+            body=body,
+            url=url,
+            category=None,
+            respect_preferences=False,
+        )
+
+        summary["sent_subscriptions"] += result["sent"]
+        summary["failed_subscriptions"] += result["failed"]
+
+        if result["sent"] > 0:
+            summary["sent_users"] += 1
+
+        results.append(
+            {
+                "user_id": user.pk,
+                "username": user.username,
+                "status": "sent" if result["sent"] > 0 else "failed",
+                "sent": result["sent"],
+                "failed": result["failed"],
+                "notification_id": result["notification_id"],
+            }
+        )
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "summary": summary,
+            "results": results,
+        }
+    )
+
+
+@login_required
+def notification_settings_page(request):
+    # Staff kullanıcıyı normal kullanıcı ekranına sokmuyoruz.
+    if request.user.is_staff:
+        return redirect("notifications:admin_home")
+
+    subscriptions = (
+        PushSubscription.objects
+        .filter(user=request.user)
+        .order_by("-updated_at")
+    )
+
+    return render(
+        request,
+        "notifications/notification_settings.html",
+        {
+            "vapid_public_key": _read_public_key(),
+            "preference_items": _preference_items(request.user),
+            "subscriptions": subscriptions,
+            "subscription_count": subscriptions.count(),
+        },
+    )
 
 @require_GET
 def manifest(request):
@@ -271,24 +517,47 @@ def unsubscribe(request):
 @login_required
 @require_POST
 def send_test(request):
-    """Technical self-test. Intentionally bypasses category preferences."""
-    data = _json_body(request) or {}
-    title = str(data.get("title") or "Django Web Push")[:120]
-    body = str(data.get("body") or "Test bildirimi başarıyla gönderildi.")[:500]
-    url = str(data.get("url") or "/")[:500]
-    if not url.startswith("/") or url.startswith("//"):
-        url = "/"
+    """
+    Kullanıcının Web Push sistemini test etmesi için teknik bildirim.
+    Kategori tercihlerini dikkate almaz.
+    İçerik backend tarafından sabittir.
+    """
+
+    if not PushSubscription.objects.filter(user=request.user).exists():
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "Bu hesaba bağlı aktif bildirim cihazı bulunmuyor.",
+            },
+            status=400,
+        )
 
     result = send_push_to_user(
         request.user,
-        title=title,
-        body=body,
-        url=url,
+        title="Test bildirimi",
+        body="Bildirim sisteminiz başarıyla çalışıyor.",
+        url="/",
         category=None,
         respect_preferences=False,
     )
-    status = 200 if result["sent"] > 0 else 400
-    return JsonResponse({"ok": result["sent"] > 0, **result}, status=status)
+
+    if result["sent"] == 0:
+        return JsonResponse(
+            {
+                "ok": False,
+                **result,
+                "error": "Test bildirimi gönderilemedi.",
+            },
+            status=400,
+        )
+
+    return JsonResponse(
+        {
+            "ok": True,
+            **result,
+            "message": f"Test bildirimi {result['sent']} cihaza gönderildi.",
+        }
+    )
 
 
 @login_required
