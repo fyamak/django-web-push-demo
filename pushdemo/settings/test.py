@@ -12,7 +12,7 @@ DATABASES = {
         "NAME": "notification",
         "USER": "pushdemo",
         "PASSWORD": "pushdemo",
-        "HOST": "host.docker.internal",
+        "HOST": "172.40.0.1",
         "PORT": "5432",
         "CONN_MAX_AGE": 60,
         "CONN_HEALTH_CHECKS": True,
